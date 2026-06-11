@@ -20,7 +20,7 @@ from urllib.parse import urljoin
 import urllib.request
 import urllib.error
 
-from backend.sm2_scheduler import SM2Scheduler
+from tutor_app.core.sm2_scheduler import SM2Scheduler
 
 logger = logging.getLogger(__name__)
 

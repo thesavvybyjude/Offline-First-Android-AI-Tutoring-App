@@ -35,7 +35,7 @@ DEFAULT_PARAMS = {
 # Hardware presets keyed by available RAM (GB)
 RAM_PRESETS: dict[str, dict] = {
     "3gb":  {"n_ctx": 2048, "n_threads": 4, "n_gpu_layers": 0},
-    "4gb": {"n_ctx": 4096, "n_threads": 4, "n_gpu_layers": 0},
+    "4gb":  {"n_ctx": 4096, "n_threads": 4, "n_gpu_layers": 0},
     "6gb+": {"n_ctx": 4096, "n_threads": 6, "n_gpu_layers": 0},
 }
 
