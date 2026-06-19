@@ -28,6 +28,11 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython virtualenv
 
+    - name: Verify app assets
+      run: |
+        test -f assets/icon.png || { echo "assets/icon.png missing — add the file or update buildozer.spec"; exit 1; }
+        test -f assets/splash.png || { echo "assets/splash.png missing — add the file or update buildozer.spec"; exit 1; }
+
     - name: Build Android APK
       run: |
         yes | buildozer android debug

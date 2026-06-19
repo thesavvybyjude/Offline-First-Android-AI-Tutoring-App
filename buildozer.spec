@@ -20,6 +20,7 @@ requirements =
     kivymd==1.2.0,
     sqlite3,
     jinja2,
+    markupsafe==2.1.2,
     flask
 
 # Android settings
