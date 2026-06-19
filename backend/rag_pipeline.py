@@ -332,3 +332,7 @@ class RAGPipeline:
     def _require_loaded(self) -> None:
         if not self._loaded or self.embedder is None:
             raise RuntimeError("Call RAGPipeline.load() before use")
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._loaded and self.embedder is not None

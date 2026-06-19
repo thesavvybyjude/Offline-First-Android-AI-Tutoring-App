@@ -19,7 +19,7 @@ from backend.sm2_scheduler import SM2Scheduler, KnowledgeItem
 def generate_flashcards():
     print("Initializing LLM Seeding Script...")
     
-    rag = RAGPipeline()
+    rag = RAGPipeline(Path("data"))
     try:
         rag.load()
     except RuntimeError as e:
@@ -52,11 +52,11 @@ A: [Your Answer]
 ### Assistant
 """
 
-    print(f"Loaded {len(rag.index.chunks)} chunks. Beginning Q&A generation...")
+    print(f"Loaded {len(rag.faiss_index.chunks)} chunks. Beginning Q&A generation...")
     
     new_items_count = 0
-    # For demo purposes, we process up to 50 chunks to save time
-    chunks_to_process = rag.index.chunks[:50] 
+  # For demo purposes, we process up to 50 chunks to save time
+    chunks_to_process = rag.faiss_index.chunks[:50] 
     
     for i, chunk in enumerate(chunks_to_process):
         print(f"Processing chunk {i+1}/{len(chunks_to_process)} from {chunk.subject}...")

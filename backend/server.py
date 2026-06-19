@@ -34,7 +34,7 @@ def init_engines():
     with engine_lock:
         if rag_engine is None:
             from backend.rag_pipeline import RAGPipeline
-            rag_engine = RAGPipeline()
+            rag_engine = RAGPipeline(Path("data"))
             try:
                 rag_engine.load()
                 logger.info("RAG Pipeline loaded via Server")

@@ -99,13 +99,13 @@ class LoginScreen(Screen):
             self.student_id_input.hint_text = 'Student ID required!'
             return
         
-        # Store user data in app
+        # Store user data in app and bootstrap DB + AI
         app = App.get_running_app()
-        app.student_id = student_id
-        app.school_code = school_code
+        display_name = student_id
+        app.bootstrap_student(student_id, display_name, school_code)
         app.offline_mode = offline_mode
-        
+
         # Navigate to dashboard
-        self.manager.current = 'dashboard'
+        self.manager.current = "dashboard"
         
         print(f"Login: Student ID={student_id}, School={school_code}, Offline={offline_mode}")

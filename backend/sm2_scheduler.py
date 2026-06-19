@@ -85,7 +85,9 @@ CREATE TABLE IF NOT EXISTS sync_log (
 -- Triggers: mark rows dirty on write
 CREATE TRIGGER IF NOT EXISTS trg_students_update
 AFTER UPDATE ON students
-FOR EACH ROW BEGIN
+FOR EACH ROW
+WHEN NEW.synced = OLD.synced
+BEGIN
     UPDATE students SET updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now'), synced = 0
     WHERE id = NEW.id;
 END;
@@ -93,11 +95,12 @@ END;
 CREATE TRIGGER IF NOT EXISTS trg_repetition_update
 AFTER UPDATE ON repetition_records
 FOR EACH ROW
-WHEN NEW.last_quality IS NOT OLD.last_quality
+WHEN NEW.synced = OLD.synced
+  AND (NEW.last_quality IS NOT OLD.last_quality
   OR NEW.ease_factor != OLD.ease_factor
   OR NEW.interval_days != OLD.interval_days
   OR NEW.repetitions != OLD.repetitions
-  OR NEW.next_review != OLD.next_review
+  OR NEW.next_review != OLD.next_review)
 BEGIN
     UPDATE repetition_records
     SET updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now'), synced = 0

@@ -20,7 +20,18 @@ logger = logging.getLogger(__name__)
 # Config
 # ---------------------------------------------------------------------------
 
-DEFAULT_MODEL_FILENAME = "Phi-3-mini-4k-instruct-q4.gguf"
+DEFAULT_MODEL_FILENAME = "SmolLM2-360M-Instruct-Q4_K_M.gguf"
+
+# Prefer smaller models for mobile; fall back to larger desktop models if present.
+MODEL_CANDIDATES: list[str] = [
+    "SmolLM2-360M-Instruct-Q4_K_M.gguf",
+    "smollm2-360m-instruct-q4_k_m.gguf",
+    "SmolLM2-360M-Instruct.Q4_K_M.gguf",
+    "Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
+    "TinyLlama-1.1B-Chat-v1.0-Q4_K_M.gguf",
+    "Phi-3-mini-4k-instruct-q4.gguf",
+    "phi-3-mini-q4_k_m.gguf",
+]
 
 # Generation defaults — tuned for factual tutoring (low temperature)
 DEFAULT_PARAMS = {
@@ -90,7 +101,7 @@ class InferenceEngine:
         if model_path:
             self.model_path = Path(model_path)
         elif models_dir:
-            self.model_path = Path(models_dir) / DEFAULT_MODEL_FILENAME
+            self.model_path = resolve_model_path(Path(models_dir))
         else:
             raise ValueError("Provide model_path or models_dir")
 
@@ -105,9 +116,8 @@ class InferenceEngine:
         if not self.model_path.exists():
             raise FileNotFoundError(
                 f"Model not found: {self.model_path}\n"
-                "Download Phi-3-mini-4k-instruct-q4.gguf from HuggingFace:\n"
-                "  huggingface-cli download microsoft/Phi-3-mini-4k-instruct-gguf "
-                "Phi-3-mini-4k-instruct-q4.gguf --local-dir ./models"
+                "Run: python setup_env.py\n"
+                "Default mobile model (~270 MB): SmolLM2-360M-Instruct-Q4_K_M.gguf"
             )
 
         preset = self._select_preset(ram_gb)
@@ -263,3 +273,16 @@ class InferenceEngine:
     @property
     def is_loaded(self) -> bool:
         return self._loaded
+
+
+def resolve_model_path(models_dir: Path) -> Path:
+    """Pick the best available GGUF in models_dir (prefers known small models)."""
+    models_dir = Path(models_dir)
+    for name in MODEL_CANDIDATES:
+        candidate = models_dir / name
+        if candidate.is_file():
+            return candidate
+    ggufs = sorted(models_dir.glob("*.gguf"), key=lambda p: p.stat().st_size)
+    if ggufs:
+        return ggufs[0]
+    return models_dir / DEFAULT_MODEL_FILENAME

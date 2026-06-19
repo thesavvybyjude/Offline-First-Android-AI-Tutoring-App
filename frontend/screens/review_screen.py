@@ -15,9 +15,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.properties import ObjectProperty
 from kivy.animation import Animation
 from kivy.graphics import Color, Rectangle
-from pathlib import Path
 from kivy.app import App
-from backend.sm2_scheduler import SM2Scheduler
 
 
 class ReviewScreen(Screen):
@@ -29,12 +27,13 @@ class ReviewScreen(Screen):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = 'review'
-        self.scheduler = SM2Scheduler(Path("data/tutor.db"))
+        self.name = "review"
         self.student_id = None
         self.current_record = None
         self.current_item = None
         self.items_queue = []
+        self.total_session = 0
+        self.reviewed_count = 0
         self.is_flipped = False
         self._build_ui()
     
@@ -109,9 +108,9 @@ class ReviewScreen(Screen):
         layout.add_widget(self.flip_btn)
         
         # Rating buttons (hidden initially)
-        self.rating_layout = GridLayout(cols=5, spacing=5, size_hint_y=0.15, opacity=0)
-        
-        for i in range(1, 6):
+        self.rating_layout = GridLayout(cols=6, spacing=5, size_hint_y=0.15, opacity=0)
+
+        for i in range(0, 6):
             btn = Button(text=str(i), font_size=20)
             btn.bind(on_press=lambda instance, rating=i: self.rate_card(rating))
             self.rating_layout.add_widget(btn)
@@ -130,11 +129,18 @@ class ReviewScreen(Screen):
     
     def _load_due_items(self):
         """Load items due for review"""
+        app = App.get_running_app()
+        scheduler = app.services.scheduler
+        if not scheduler:
+            self.question_label.text = "Please log in first"
+            return
         try:
-            session = self.scheduler.get_review_session(self.student_id, limit=20)
+            session = scheduler.get_review_session(self.student_id, limit=20)
             self.items_queue = list(session.items)
+            self.total_session = len(self.items_queue)
+            self.reviewed_count = 0
             self._update_progress()
-            
+
             if self.items_queue:
                 self._show_next_card()
             else:
@@ -171,10 +177,11 @@ class ReviewScreen(Screen):
         self._update_progress()
     
     def _update_progress(self):
-        """Update progress label"""
-        total = len(self.items_queue) + (1 if self.current_item else 0)
-        reviewed = len(self.items_queue)
-        self.progress_label.text = f'{reviewed}/{total}'
+        """Update progress label (completed / total in session)"""
+        if self.total_session == 0:
+            self.progress_label.text = "0/0"
+        else:
+            self.progress_label.text = f"{self.reviewed_count}/{self.total_session}"
     
     def flip_card(self, instance):
         """Flip the card to show answer"""
@@ -200,11 +207,13 @@ class ReviewScreen(Screen):
             return
         
         try:
-            # Update SM2 record
-            self.scheduler.record_response(
+            app = App.get_running_app()
+            scheduler = app.services.scheduler
+            scheduler.record_response(
                 self.current_record.id,
-                rating
+                rating,
             )
+            self.reviewed_count += 1
             
             # Hide rating buttons
             anim = Animation(opacity=0, duration=0.2)

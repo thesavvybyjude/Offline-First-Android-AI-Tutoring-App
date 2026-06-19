@@ -8,33 +8,34 @@ package.domain = org.aitutor
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json,gguf,index
 source.include_patterns = models/*.gguf, data/**
+source.exclude_dirs = tests, files, add ons, docs, .github, .venv, bin, .git
 
 version = 1.0.0
 
-# Requirements — ordered by size (large first for cache efficiency)
-# llama-cpp-python must be built with CPU-only flag for Android
+# Requirements — small-model mobile build (~270 MB GGUF recommended)
 requirements =
     hostpython3==3.11.8,
     python3==3.11.8,
     kivy==2.3.1,
-    kivymd==1.2.0,
     sqlite3,
+    numpy,
     jinja2,
     markupsafe==2.1.2,
-    flask
+    pillow,
+    certifi,
+    charset-normalizer,
+    idna,
+    urllib3
 
 # Android settings
 android.permissions =
     INTERNET,
-    ACCESS_NETWORK_STATE,
-    READ_EXTERNAL_STORAGE,
-    WRITE_EXTERNAL_STORAGE
+    ACCESS_NETWORK_STATE
 
 android.api = 33
 android.minapi = 28
 android.ndk = 25b
 android.sdk = 33
-android.arch = arm64-v8a
 
 # ABI — arm64-v8a only (covers 95%+ of Android devices since 2016)
 android.archs = arm64-v8a
@@ -52,10 +53,6 @@ fullscreen = 0
 # Build mode
 android.release_artifact = apk
 
-# Large file support (GGUF model is ~2.1GB)
-android.gradle_dependencies =
-    com.android.support:appcompat-v7:28.0.0
-
 [buildozer]
 log_level = 2
 warn_on_root = 1
@@ -67,9 +64,6 @@ bin_dir = ./bin
 android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b
 android.sdk_path = ~/.buildozer/android/platform/android-sdk
 
-# p4a (python-for-android) settings
-p4a.branch = master
-
-# Custom hook to disable GPU layers for llama-cpp on Android
-# (CPU inference only — no OpenCL/Vulkan)
-p4a.local_recipes = ./recipes
+# Note: llama-cpp-python, faiss-cpu, sentence-transformers require custom p4a recipes.
+# This APK ships UI + flashcards; place a GGUF in models/ before build for on-device chat.
+# Run: python setup_env.py  (downloads SmolLM2-360M ~270MB)
