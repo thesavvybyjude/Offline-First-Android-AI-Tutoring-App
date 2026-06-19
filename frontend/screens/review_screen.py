@@ -15,7 +15,8 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.properties import ObjectProperty
 from kivy.animation import Animation
 from kivy.graphics import Color, Rectangle
-from backend.database import DatabaseManager
+from pathlib import Path
+from kivy.app import App
 from backend.sm2_scheduler import SM2Scheduler
 
 
@@ -29,9 +30,9 @@ class ReviewScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'review'
-        self.db = DatabaseManager()
-        self.scheduler = SM2Scheduler(self.db)
+        self.scheduler = SM2Scheduler(Path("data/tutor.db"))
         self.student_id = None
+        self.current_record = None
         self.current_item = None
         self.items_queue = []
         self.is_flipped = False
@@ -39,8 +40,8 @@ class ReviewScreen(Screen):
     
     def on_enter(self):
         """Called when screen is entered"""
-        app = self.manager.app
-        self.student_id = getattr(app, 'student_id', 1)
+        app = App.get_running_app()
+        self.student_id = str(getattr(app, 'student_id', 'stu_001'))
         self._load_due_items()
     
     def _build_ui(self):
@@ -77,6 +78,7 @@ class ReviewScreen(Screen):
             text='Loading...',
             font_size=18,
             text_size=(330, None),
+            color=(0, 0, 0, 1),
             halign='center',
             valign='center'
         )
@@ -87,6 +89,7 @@ class ReviewScreen(Screen):
             text='',
             font_size=16,
             text_size=(330, None),
+            color=(0.2, 0.2, 0.2, 1),
             halign='center',
             valign='center',
             opacity=0
@@ -128,8 +131,8 @@ class ReviewScreen(Screen):
     def _load_due_items(self):
         """Load items due for review"""
         try:
-            session = self.scheduler.get_review_session(self.student_id, session_size=20)
-            self.items_queue = session['items']
+            session = self.scheduler.get_review_session(self.student_id, limit=20)
+            self.items_queue = list(session.items)
             self._update_progress()
             
             if self.items_queue:
@@ -147,17 +150,17 @@ class ReviewScreen(Screen):
         """Show the next card in the queue"""
         if not self.items_queue:
             self.question_label.text = "Review Complete!"
-            self.answer_label.text = f"You reviewed {len(self.items_queue)} cards."
+            self.answer_label.text = "You reviewed all due cards."
             self.answer_label.opacity = 1
             self.flip_btn.disabled = True
             return
         
-        self.current_item = self.items_queue.pop(0)
+        self.current_record, self.current_item = self.items_queue.pop(0)
         self.is_flipped = False
         
         # Show question
-        self.question_label.text = self.current_item['question']
-        self.answer_label.text = self.current_item['answer']
+        self.question_label.text = self.current_item.question
+        self.answer_label.text = self.current_item.answer
         self.answer_label.opacity = 0
         
         # Reset buttons
@@ -193,14 +196,13 @@ class ReviewScreen(Screen):
     
     def rate_card(self, rating: int):
         """Rate the card and schedule next review"""
-        if not self.current_item:
+        if not self.current_record:
             return
         
         try:
             # Update SM2 record
-            self.scheduler.schedule_review(
-                self.student_id,
-                self.current_item['item_id'],
+            self.scheduler.record_response(
+                self.current_record.id,
                 rating
             )
             

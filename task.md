@@ -1,0 +1,6 @@
+- `[ ]` Wait for Python dependency installation (`pip install`) to finish
+- `[x]` Run `setup_env.py` to download the Phi-3 model (2.1GB) and set up the data directories
+- `[ ]` Run the automated test suite (`pytest`) and fix any broken tests or logic
+- `[ ]` Perform static analysis and UI screen review to ensure frontend-backend integration works correctly
+- `[ ]` Perform manual integration test by spinning up the backend and app interface
+- `[ ]` Attempt to build the Android APK using `buildozer android debug`

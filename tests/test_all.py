@@ -16,6 +16,10 @@ Tests are grouped by layer:
 from __future__ import annotations
 
 import json
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import math
 import sqlite3
 import tempfile
@@ -24,7 +28,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch, PropertyMock
 import numpy as np
-import pytest
+import pytest  # type: ignore
 
 # ---------------------------------------------------------------------------
 # SM2 Algorithm Tests

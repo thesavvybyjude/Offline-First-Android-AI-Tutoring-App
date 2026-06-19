@@ -5,6 +5,10 @@ AI tutoring interface with streaming responses
 
 import sys
 import os
+import threading
+import json
+import requests
+from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from kivy.uix.screenmanager import Screen
@@ -16,8 +20,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.properties import ObjectProperty
 from kivy.clock import Clock
-from backend.rag_pipeline import RAGPipeline
-from backend.inference_engine import InferenceEngine
+from kivy.graphics import Color, Rectangle
 
 
 class TutorChatScreen(Screen):
@@ -29,23 +32,15 @@ class TutorChatScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'tutor_chat'
-        self.rag = None
-        self.inference = None
         self.messages = []
         self._build_ui()
     
     def on_enter(self):
         """Called when screen is entered"""
-        # Initialize RAG and inference (lazy loading)
-        try:
-            self.rag = RAGPipeline()
-            self.inference = InferenceEngine()
-        except Exception as e:
-            print(f"Error initializing AI: {e}")
+        pass # Initialization happens via Flask subprocess now
     
     def _build_ui(self):
         """Build the chat UI"""
-        # Main layout
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
         # Header
@@ -74,17 +69,16 @@ class TutorChatScreen(Screen):
         )
         input_layout.add_widget(self.message_input)
         
-        send_btn = Button(
+        self.send_btn = Button(
             text='Send',
             size_hint_x=0.25,
             font_size=16,
             background_color=(0.2, 0.6, 0.8, 1)
         )
-        send_btn.bind(on_press=self.send_message)
-        input_layout.add_widget(send_btn)
+        self.send_btn.bind(on_press=self.send_message)
+        input_layout.add_widget(self.send_btn)
         
         layout.add_widget(input_layout)
-        
         self.add_widget(layout)
     
     def send_message(self, instance):
@@ -93,16 +87,28 @@ class TutorChatScreen(Screen):
         if not query:
             return
         
-        # Clear input
         self.message_input.text = ''
-        
-        # Add user message
         self._add_message(query, is_user=True)
+        self.send_btn.disabled = True
         
-        # Get AI response
-        self._get_ai_response(query)
+        # Setup typing indicator
+        self.current_ai_label = self._add_message("...", is_user=False, return_label=True)
+        self.typing_dots = 1
+        self.typing_event = Clock.schedule_interval(self._animate_typing, 0.5)
+        
+        threading.Thread(target=self._get_ai_response_worker, args=(query,), daemon=True).start()
+
+    def _animate_typing(self, dt):
+        self.typing_dots = (self.typing_dots % 3) + 1
+        if self.current_ai_label:
+            self.current_ai_label.text = "." * self.typing_dots
+
+    def _cancel_typing_animation(self):
+        if hasattr(self, 'typing_event') and self.typing_event:
+            self.typing_event.cancel()
+            self.typing_event = None
     
-    def _add_message(self, text: str, is_user: bool = False):
+    def _add_message(self, text: str, is_user: bool = False, return_label: bool = False):
         """Add a message to the chat"""
         msg_layout = BoxLayout(
             orientation='vertical',
@@ -110,7 +116,6 @@ class TutorChatScreen(Screen):
             padding=10
         )
         
-        # Message bubble
         bubble = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
@@ -119,9 +124,9 @@ class TutorChatScreen(Screen):
         
         with bubble.canvas.before:
             if is_user:
-                Color(0.2, 0.6, 0.8, 1)  # Blue for user
+                Color(0.2, 0.6, 0.8, 1)
             else:
-                Color(0.8, 0.8, 0.8, 1)  # Gray for AI
+                Color(0.3, 0.3, 0.3, 1)
             bubble.rect = Rectangle(pos=bubble.pos, size=bubble.size)
         
         bubble.bind(pos=self._update_rect, size=self._update_rect)
@@ -143,39 +148,67 @@ class TutorChatScreen(Screen):
         msg_layout.height = bubble.height
         
         self.chat_layout.add_widget(msg_layout)
+        
+        if return_label:
+            return msg_label
     
     def _update_rect(self, instance, value):
-        """Update rectangle position and size"""
         instance.rect.pos = instance.pos
         instance.rect.size = instance.size
     
-    def _get_ai_response(self, query: str):
-        """Get AI response using RAG + LLM"""
+    def _get_ai_response_worker(self, query: str):
+        """Get AI response via HTTP streaming"""
+        response_text = ""
         try:
-            # Retrieve context
-            if self.rag:
-                context = self.rag.retrieve_context(query, max_tokens=512)
+            response = requests.post(
+                "http://localhost:5000/query", 
+                json={"query": query, "grade_level": "SS2"}, 
+                stream=True, 
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                first_token = True
+                for line in response.iter_lines():
+                    if line:
+                        data = json.loads(line.decode('utf-8'))
+                        token = data.get("token", "")
+                        response_text += token
+                        
+                        if first_token:
+                            first_token = False
+                            Clock.schedule_once(lambda dt: self._cancel_typing_animation())
+                            
+                        # Safely update label
+                        Clock.schedule_once(lambda dt, t=response_text: self._update_ai_label(t))
             else:
-                context = ""
-            
-            # Generate response
-            if self.inference:
-                response = self.inference.generate(
-                    query=query,
-                    context=context,
-                    grade_level="SS1",
-                    max_tokens=256
-                )
-            else:
-                response = "AI not available. Please check model setup."
-            
-            # Add AI message
-            self._add_message(response, is_user=False)
-            
+                response_text = f"Error: Server returned {response.status_code}"
+                Clock.schedule_once(lambda dt: self._cancel_typing_animation())
+                Clock.schedule_once(lambda dt, t=response_text: self._update_ai_label(t))
+                
         except Exception as e:
-            error_msg = f"Error: {str(e)}"
-            self._add_message(error_msg, is_user=False)
+            response_text = f"Error connecting to AI Server: {str(e)}"
+            Clock.schedule_once(lambda dt: self._cancel_typing_animation())
+            Clock.schedule_once(lambda dt, t=response_text: self._update_ai_label(t))
+            
+        Clock.schedule_once(lambda dt: self._on_ai_complete())
+
+    def _update_ai_label(self, text):
+        if self.current_ai_label:
+            self.current_ai_label.text = text
+            # Update heights
+            self.current_ai_label.height = self.current_ai_label.texture_size[1] + 20
+            bubble = self.current_ai_label.parent
+            if bubble:
+                bubble.height = self.current_ai_label.height + 20
+                msg_layout = bubble.parent
+                if msg_layout:
+                    msg_layout.height = bubble.height
+        
+    def _on_ai_complete(self):
+        self.send_btn.disabled = False
+        self.current_ai_label = None
     
     def go_back(self, instance):
-        """Return to dashboard"""
         self.manager.current = 'dashboard'
+

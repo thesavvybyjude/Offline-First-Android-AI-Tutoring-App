@@ -18,10 +18,6 @@ requirements =
     kivy==2.3.0,
     kivymd==1.1.1,
     sqlite3,
-    numpy,
-    faiss-cpu,
-    sentence-transformers,
-    llama-cpp-python,
     jinja2,
     flask
 

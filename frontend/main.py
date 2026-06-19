@@ -9,6 +9,7 @@ from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.core.window import Window
 from kivy.config import Config
+import subprocess
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,9 +45,18 @@ class TutorApp(App):
     def on_start(self):
         """Called when app starts"""
         print("AI Tutor App started")
+        try:
+            server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend", "server.py")
+            self.server_process = subprocess.Popen([sys.executable, server_path])
+            print("Flask subprocess launched locally on port 5000.")
+        except Exception as e:
+            print(f"Failed to launch Flask subprocess: {e}")
     
     def on_stop(self):
         """Called when app stops"""
+        if hasattr(self, 'server_process') and self.server_process:
+            self.server_process.terminate()
+            self.server_process.wait()
         print("AI Tutor App stopped")
 
 

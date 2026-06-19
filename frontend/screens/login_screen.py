@@ -11,6 +11,7 @@ from kivy.uix.button import Button
 from kivy.uix.checkbox import CheckBox
 from kivy.properties import ObjectProperty
 from kivy.core.window import Window
+from kivy.app import App
 
 
 class LoginScreen(Screen):
@@ -99,7 +100,7 @@ class LoginScreen(Screen):
             return
         
         # Store user data in app
-        app = self.manager.app
+        app = App.get_running_app()
         app.student_id = student_id
         app.school_code = school_code
         app.offline_mode = offline_mode

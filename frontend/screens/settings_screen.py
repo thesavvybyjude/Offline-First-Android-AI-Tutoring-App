@@ -15,7 +15,9 @@ from kivy.uix.button import Button
 from kivy.uix.switch import Switch
 from kivy.uix.slider import Slider
 from kivy.properties import ObjectProperty
-from backend.database import DatabaseManager
+from pathlib import Path
+from kivy.app import App
+from backend.sm2_scheduler import SM2Scheduler
 
 
 class SettingsScreen(Screen):
@@ -24,15 +26,17 @@ class SettingsScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'settings'
-        self.db = DatabaseManager()
+        self.scheduler = SM2Scheduler(Path("data/tutor.db"))
         self.student_id = None
+        self.student_data = None
         self._build_ui()
     
     def on_enter(self):
         """Called when screen is entered"""
-        app = self.manager.app
-        self.student_id = getattr(app, 'student_id', 1)
+        app = App.get_running_app()
+        self.student_id = str(getattr(app, 'student_id', 'stu_001'))
         self._load_student_data()
+        self._update_storage_usage()
     
     def _build_ui(self):
         """Build the settings UI"""
@@ -127,11 +131,15 @@ class SettingsScreen(Screen):
     def _load_student_data(self):
         """Load student data from database"""
         try:
-            student = self.db.get_student(self.student_id)
-            if student:
-                self.name_input.text = student.get('name', '')
+            self.student_data = self.scheduler.get_student(self.student_id)
+            if self.student_data:
+                self.name_input.text = self.student_data.get('name', '')
+            else:
+                self.name_input.text = ''
+                self.student_data = {}
         except Exception as e:
             print(f"Error loading student data: {e}")
+            self.student_data = {}
     
     def _update_limit_label(self, instance, value):
         """Update limit label when slider changes"""
@@ -168,13 +176,9 @@ class SettingsScreen(Screen):
             # Update student name
             name = self.name_input.text.strip()
             if name:
-                conn = self.db.connect()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE students SET name=? WHERE id=?",
-                    (name, self.student_id)
-                )
-                conn.commit()
+                grade_level = self.student_data.get("grade_level", "SS2")
+                school_id = self.student_data.get("school_id", None)
+                self.scheduler.upsert_student(self.student_id, name, grade_level, school_id)
             
             print("Settings saved")
             self.go_back(None)

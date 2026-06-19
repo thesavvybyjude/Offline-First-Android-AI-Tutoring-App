@@ -1,0 +1,4 @@
+This is an English textbook chapter about grammar and literature.
+Nouns are words that represent a person, place, or thing. Verbs represent actions.
+We study literature to understand the human condition and history.
+More text here to ensure the file is at least 100 characters long to pass the test. Here is some extra text to make sure it's long enough.

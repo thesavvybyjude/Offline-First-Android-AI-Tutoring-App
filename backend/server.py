@@ -10,16 +10,45 @@ import json
 import logging
 import sqlite3
 import uuid
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 app = Flask(__name__)
 DB_PATH = Path("data/server.db")
+
+# ---------------------------------------------------------------------------
+# AI Engines (Loaded Lazily for Local Server Mode)
+# ---------------------------------------------------------------------------
+rag_engine = None
+inference_engine = None
+engine_lock = threading.Lock()
+
+def init_engines():
+    global rag_engine, inference_engine
+    with engine_lock:
+        if rag_engine is None:
+            from backend.rag_pipeline import RAGPipeline
+            rag_engine = RAGPipeline()
+            try:
+                rag_engine.load()
+                logger.info("RAG Pipeline loaded via Server")
+            except Exception as e:
+                logger.error(f"Failed to load RAG in server: {e}")
+                
+        if inference_engine is None:
+            from backend.inference_engine import InferenceEngine
+            inference_engine = InferenceEngine(models_dir=Path("models"))
+            try:
+                inference_engine.load(ram_gb=4.0)
+                logger.info("Inference Engine loaded via Server")
+            except Exception as e:
+                logger.error(f"Failed to load Inference Engine in server: {e}")
 
 # ---------------------------------------------------------------------------
 # Server DB Schema
@@ -69,6 +98,42 @@ def get_db():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "timestamp": datetime.utcnow().isoformat()})
+
+
+# ---------------------------------------------------------------------------
+# AI Inference: Local -> Server
+# ---------------------------------------------------------------------------
+
+@app.route("/query", methods=["POST"])
+def query():
+    """
+    Handle inference query.
+    Body: { "query": str, "grade_level": str }
+    Streams JSON lines: {"token": str}
+    """
+    init_engines()
+    data = request.get_json(silent=True)
+    if not data or "query" not in data:
+        return jsonify({"error": "Missing query"}), 400
+        
+    q = data["query"]
+    grade_level = data.get("grade_level", "SS2")
+    
+    if rag_engine and rag_engine.is_loaded:
+        pkg = rag_engine.build_prompt(q, grade_level=grade_level)
+        prompt = pkg.prompt
+    else:
+        # Fallback if RAG is not loaded
+        prompt = f"### Student\n{q}\n\n### Assistant\n"
+        
+    if not inference_engine or not inference_engine.is_loaded:
+        return jsonify({"error": "Model not loaded"}), 503
+        
+    def generate():
+        for token in inference_engine.generate_stream(prompt):
+            yield json.dumps({"token": token}) + "\n"
+            
+    return Response(generate(), mimetype='application/x-ndjson')
 
 
 # ---------------------------------------------------------------------------

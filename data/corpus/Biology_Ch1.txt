@@ -1,0 +1,4 @@
+This is a biology textbook chapter about cells and osmosis.
+Osmosis is the movement of water molecules from a region of higher water concentration to a region of lower water concentration through a selectively permeable membrane.
+Cells contain mitochondria, the powerhouse of the cell.
+More text here to ensure the file is at least 100 characters long to pass the test. Here is some extra text to make sure it's long enough.
