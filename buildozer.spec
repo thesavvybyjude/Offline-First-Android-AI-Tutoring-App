@@ -14,9 +14,9 @@ version = 1.0.0
 # Requirements — ordered by size (large first for cache efficiency)
 # llama-cpp-python must be built with CPU-only flag for Android
 requirements =
-    python3,
-    kivy==2.3.0,
-    kivymd==1.1.1,
+    python3==3.11.8,
+    kivy==2.3.1,
+    kivymd==1.2.0,
     sqlite3,
     jinja2,
     flask
