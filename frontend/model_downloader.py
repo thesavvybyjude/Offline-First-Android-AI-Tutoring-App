@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Default model: SmolLM2-360M-Instruct Q4_K_M (~271 MB)
 DEFAULT_MODEL_URL = (
-    "https://huggingface.co/tensorblock/SmolLM2-360M-Instruct-GGUF/"
+    "https://huggingface.co/lmstudio-community/SmolLM2-360M-Instruct-GGUF/"
     "resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf"
 )
 DEFAULT_MODEL_FILENAME = "SmolLM2-360M-Instruct-Q4_K_M.gguf"
