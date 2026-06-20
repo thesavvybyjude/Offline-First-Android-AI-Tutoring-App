@@ -43,33 +43,22 @@ jobs:
         test -f assets/splash.png || { echo "::error::assets/splash.png missing — add the file or update buildozer.spec"; exit 1; }
         echo "✓ App assets verified"
 
+    - name: Cache AI Model
+      id: cache-model
+      uses: actions/cache@v4
+      with:
+        path: models/SmolLM2-360M-Instruct-Q4_K_M.gguf
+        key: smollm2-360m-q4km-v2
+
     - name: Download AI model (SmolLM2-360M ~270MB)
+      if: steps.cache-model.outputs.cache-hit != 'true'
       run: |
         mkdir -p models
-        MODEL_FILE="models/SmolLM2-360M-Instruct-Q4_K_M.gguf"
-        if [ -f "$MODEL_FILE" ]; then
-          echo "Model already exists ($(du -h "$MODEL_FILE" | cut -f1))"
-        else
-          echo "Downloading SmolLM2-360M-Instruct-Q4_K_M.gguf (~270MB)..."
-          # Try primary HuggingFace URL
-          curl -L --retry 5 --retry-delay 5 --retry-max-time 120 \
-            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GitHubActions" \
-            -o "$MODEL_FILE" \
-            "https://huggingface.co/tensorblock/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf?download=true"
-          
-          # Check size and fallback if it's a tiny error response
-          SIZE=$(stat -c%s "$MODEL_FILE" 2>/dev/null || echo 0)
-          if [ "$SIZE" -lt 100000000 ]; then
-            echo "Primary download failed (size: $SIZE). Trying fallback URL..."
-            rm -f "$MODEL_FILE"
-            # Fallback direct link (hf.co shorthand)
-            curl -L --retry 5 --retry-delay 5 \
-              -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GitHubActions" \
-              -o "$MODEL_FILE" \
-              "https://hf.co/tensorblock/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf?download=true"
-          fi
-          echo "Downloaded: $(du -h "$MODEL_FILE" | cut -f1)"
-        fi
+        echo "Installing huggingface_hub for robust downloads..."
+        pip install huggingface_hub
+        echo "Downloading SmolLM2-360M-Instruct-Q4_K_M.gguf (~270MB)..."
+        huggingface-cli download tensorblock/SmolLM2-360M-Instruct-GGUF SmolLM2-360M-Instruct-Q4_K_M.gguf --local-dir models --local-dir-use-symlinks False
+        echo "Downloaded: $(du -h models/SmolLM2-360M-Instruct-Q4_K_M.gguf | cut -f1)"
 
     - name: Verify model file
       run: |
