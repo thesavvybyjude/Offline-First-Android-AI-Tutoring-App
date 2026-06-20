@@ -57,7 +57,7 @@ jobs:
         echo "Installing huggingface_hub for robust downloads..."
         pip install huggingface_hub
         echo "Downloading SmolLM2-360M-Instruct-Q4_K_M.gguf (~270MB)..."
-        hf download tensorblock/SmolLM2-360M-Instruct-GGUF SmolLM2-360M-Instruct-Q4_K_M.gguf --local-dir models --local-dir-use-symlinks False
+        huggingface-cli download lmstudio-community/SmolLM2-360M-Instruct-GGUF SmolLM2-360M-Instruct-Q4_K_M.gguf --local-dir models --local-dir-use-symlinks False
         echo "Downloaded: $(du -h models/SmolLM2-360M-Instruct-Q4_K_M.gguf | cut -f1)"
 
     - name: Verify model file
