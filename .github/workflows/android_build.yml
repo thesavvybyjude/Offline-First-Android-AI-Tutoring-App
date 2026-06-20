@@ -51,9 +51,23 @@ jobs:
           echo "Model already exists ($(du -h "$MODEL_FILE" | cut -f1))"
         else
           echo "Downloading SmolLM2-360M-Instruct-Q4_K_M.gguf (~270MB)..."
-          curl -L --retry 3 --retry-delay 5 \
+          # Try primary HuggingFace URL
+          curl -L --retry 5 --retry-delay 5 --retry-max-time 120 \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GitHubActions" \
             -o "$MODEL_FILE" \
-            "https://huggingface.co/tensorblock/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf"
+            "https://huggingface.co/tensorblock/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf?download=true"
+          
+          # Check size and fallback if it's a tiny error response
+          SIZE=$(stat -c%s "$MODEL_FILE" 2>/dev/null || echo 0)
+          if [ "$SIZE" -lt 100000000 ]; then
+            echo "Primary download failed (size: $SIZE). Trying fallback URL..."
+            rm -f "$MODEL_FILE"
+            # Fallback direct link (hf.co shorthand)
+            curl -L --retry 5 --retry-delay 5 \
+              -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GitHubActions" \
+              -o "$MODEL_FILE" \
+              "https://hf.co/tensorblock/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf?download=true"
+          fi
           echo "Downloaded: $(du -h "$MODEL_FILE" | cut -f1)"
         fi
 
