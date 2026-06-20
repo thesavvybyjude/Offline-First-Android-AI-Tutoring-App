@@ -7,6 +7,7 @@ for each semantic chunk in the vector index, then inserts them into SQLite.
 import os
 import sys
 import json
+import sqlite3
 from pathlib import Path
 
 # Add project root to sys.path
@@ -106,5 +107,4 @@ A: [Your Answer]
     engine.unload()
 
 if __name__ == "__main__":
-    import sqlite3
     generate_flashcards()

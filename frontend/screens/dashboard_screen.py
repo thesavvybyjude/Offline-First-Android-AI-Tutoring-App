@@ -35,9 +35,12 @@ class DashboardScreen(Screen):
     def on_enter(self):
         app = App.get_running_app()
         services = app.services
-        if services.scheduler:
-            services.scheduler.init_db()
-        self.student_id = str(getattr(app, "student_id", services.student_id or "stu_001"))
+        raw_id = getattr(app, "student_id", None) or getattr(services, "student_id", None)
+        if not raw_id:
+            # User somehow reached dashboard without logging in
+            self.student_id = None
+            return
+        self.student_id = str(raw_id)
         self._update_stats()
         self._update_ai_status()
 

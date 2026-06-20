@@ -276,7 +276,10 @@ class InferenceEngine:
 
 
 def resolve_model_path(models_dir: Path) -> Path:
-    """Pick the best available GGUF in models_dir (prefers known small models)."""
+    """Pick the best available GGUF in models_dir (prefers known small models).
+
+    Raises FileNotFoundError if no GGUF files exist.
+    """
     models_dir = Path(models_dir)
     for name in MODEL_CANDIDATES:
         candidate = models_dir / name
@@ -285,4 +288,7 @@ def resolve_model_path(models_dir: Path) -> Path:
     ggufs = sorted(models_dir.glob("*.gguf"), key=lambda p: p.stat().st_size)
     if ggufs:
         return ggufs[0]
-    return models_dir / DEFAULT_MODEL_FILENAME
+    raise FileNotFoundError(
+        f"No .gguf model files found in {models_dir}. "
+        f"Run: python setup_env.py  (downloads SmolLM2-360M ~270MB)"
+    )

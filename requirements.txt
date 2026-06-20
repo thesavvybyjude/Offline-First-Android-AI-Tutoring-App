@@ -1,15 +1,15 @@
-# Core inference
+# Core inference (desktop / full build only)
 llama-cpp-python>=0.2.90
 
-# RAG
+# RAG (desktop / full build only)
 sentence-transformers>=2.7.0
 faiss-cpu>=1.8.0
+numpy>=1.24.4
 
 # UI
 kivy[base]>=2.3.0
 kivymd>=1.1.1
 kivy_garden.graph>=0.4.0
-
 
 # Templates
 Jinja2>=3.1.4
@@ -21,15 +21,14 @@ Flask>=3.0.3
 pytest>=8.2.2
 
 # Utils
-numpy>=1.26.4
 tiktoken>=0.7.0
 langchain>=0.1.0
 requests>=2.31.0
 
-
 # Corpus ingestion (optional)
 PyMuPDF>=1.24.0
 pdfplumber>=0.11.0
+tqdm>=4.66.0
 
 # Benchmarking (optional)
 pandas>=2.2.2
@@ -37,4 +36,3 @@ scikit-learn>=1.5.0
 
 # Deployment
 buildozer>=1.5.0
-

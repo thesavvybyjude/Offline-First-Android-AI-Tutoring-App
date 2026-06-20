@@ -31,7 +31,8 @@ class SettingsScreen(Screen):
 
     def on_enter(self):
         app = App.get_running_app()
-        self.student_id = str(getattr(app, "student_id", app.services.student_id or "stu_001"))
+        raw_id = getattr(app, "student_id", None) or getattr(app.services, "student_id", None)
+        self.student_id = str(raw_id) if raw_id else None
         self._load_student_data()
         self._update_storage_usage()
 
@@ -141,7 +142,10 @@ class SettingsScreen(Screen):
             if directory.exists():
                 for root, _dirs, files in os.walk(directory):
                     for file in files:
-                        total_size += os.path.getsize(os.path.join(root, file))
+                        try:
+                            total_size += os.path.getsize(os.path.join(root, file))
+                        except OSError:
+                            pass  # File deleted mid-walk or permission error
 
         size_mb = total_size / (1024 * 1024)
         self.storage_value_label.text = f"{size_mb:.1f} MB used"

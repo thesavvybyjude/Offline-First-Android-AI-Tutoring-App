@@ -98,6 +98,11 @@ class LoginScreen(Screen):
         if not student_id:
             self.student_id_input.hint_text = 'Student ID required!'
             return
+
+        if len(student_id) < 2:
+            self.student_id_input.hint_text = 'ID must be at least 2 characters'
+            self.student_id_input.text = ''
+            return
         
         # Store user data in app and bootstrap DB + AI
         app = App.get_running_app()

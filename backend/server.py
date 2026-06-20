@@ -28,27 +28,36 @@ DB_PATH = Path("data/server.db")
 rag_engine = None
 inference_engine = None
 engine_lock = threading.Lock()
+_engine_errors: dict[str, str] = {}  # tracks init failures for /query diagnostics
 
 def init_engines():
     global rag_engine, inference_engine
     with engine_lock:
         if rag_engine is None:
             from backend.rag_pipeline import RAGPipeline
-            rag_engine = RAGPipeline(Path("data"))
             try:
+                rag_engine = RAGPipeline(Path("data"))
                 rag_engine.load()
                 logger.info("RAG Pipeline loaded via Server")
+            except ImportError as e:
+                logger.warning("RAG dependencies not installed: %s", e)
+                _engine_errors["rag"] = str(e)
+                rag_engine = None
             except Exception as e:
-                logger.error(f"Failed to load RAG in server: {e}")
+                logger.error("Failed to load RAG in server: %s", e)
+                _engine_errors["rag"] = str(e)
+                rag_engine = None
                 
         if inference_engine is None:
             from backend.inference_engine import InferenceEngine
-            inference_engine = InferenceEngine(models_dir=Path("models"))
             try:
+                inference_engine = InferenceEngine(models_dir=Path("models"))
                 inference_engine.load(ram_gb=4.0)
                 logger.info("Inference Engine loaded via Server")
             except Exception as e:
-                logger.error(f"Failed to load Inference Engine in server: {e}")
+                logger.error("Failed to load Inference Engine in server: %s", e)
+                _engine_errors["inference"] = str(e)
+                inference_engine = None
 
 # ---------------------------------------------------------------------------
 # Server DB Schema
@@ -127,7 +136,8 @@ def query():
         prompt = f"### Student\n{q}\n\n### Assistant\n"
         
     if not inference_engine or not inference_engine.is_loaded:
-        return jsonify({"error": "Model not loaded"}), 503
+        reason = _engine_errors.get("inference", "Model not loaded")
+        return jsonify({"error": reason}), 503
         
     def generate():
         for token in inference_engine.generate_stream(prompt):
@@ -140,7 +150,7 @@ def query():
 # Push: Client → Server
 # ---------------------------------------------------------------------------
 
-@app.route(f"/api/v1/sync/push", methods=["POST"])
+@app.route("/api/v1/sync/push", methods=["POST"])
 def sync_push():
     """
     Accept delta records from a client.

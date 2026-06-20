@@ -9,7 +9,13 @@ from typing import List, Dict, Tuple
 from pathlib import Path
 import fitz  # PyMuPDF
 import pdfplumber
-from tqdm import tqdm
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    # tqdm is optional — fall back to a no-op wrapper
+    def tqdm(iterable, **kwargs):  # type: ignore[misc]
+        return iterable
 
 
 class CorpusProcessor:
@@ -49,7 +55,9 @@ class CorpusProcessor:
         text = ""
         with pdfplumber.open(pdf_path) as pdf:
             for page in pdf.pages:
-                text += page.extract_text() + "\n"
+                page_text = page.extract_text()
+                if page_text:  # can be None for scanned/image pages
+                    text += page_text + "\n"
         return text
     
     def process_corpus_directory(self, pattern: str = "*.pdf") -> List[Dict]:
@@ -214,9 +222,9 @@ class CorpusProcessor:
             chunks = self.chunk_document(doc, chunk_size, overlap)
             all_chunks.extend(chunks)
         
-        # Save chunks to JSON
+        # Save chunks to JSON — filename matches what RAG pipeline reads
         import json
-        chunks_path = os.path.join(self.chunks_dir, 'all_chunks.json')
+        chunks_path = os.path.join(self.chunks_dir, 'chunks.json')
         with open(chunks_path, 'w', encoding='utf-8') as f:
             json.dump(all_chunks, f, ensure_ascii=False, indent=2)
         
@@ -228,7 +236,7 @@ class CorpusProcessor:
     def get_chunks(self) -> List[Dict]:
         """Load all chunks from JSON file"""
         import json
-        chunks_path = os.path.join(self.chunks_dir, 'all_chunks.json')
+        chunks_path = os.path.join(self.chunks_dir, 'chunks.json')
         
         if not os.path.exists(chunks_path):
             return []

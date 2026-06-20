@@ -23,10 +23,11 @@ jobs:
         sudo apt update
         sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf automake libtool libtool-bin pkg-config zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev cython3 libltdl-dev m4
 
-    - name: Install Buildozer
+    - name: Install Buildozer and python-for-android
       run: |
         pip install --upgrade pip
         pip install buildozer cython virtualenv
+        pip install --upgrade python-for-android
 
     - name: Verify app assets
       run: |
@@ -34,11 +35,24 @@ jobs:
         test -f assets/splash.png || { echo "assets/splash.png missing — add the file or update buildozer.spec"; exit 1; }
 
     - name: Build Android APK
+      env:
+        # Future-proofing: when AI deps (numpy, llama-cpp) are added,
+        # these flags ensure C++ sources compile with the correct standard.
+        CXXFLAGS: "-O2 -fPIC -std=c++17"
+        CFLAGS: "-O2 -fPIC"
       run: |
-        yes | buildozer android debug
+        yes | buildozer android debug 2>&1 | tee build.log
+        echo "Build completed with exit code $?"
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: AITutor-Android-App
         path: bin/*.apk
+
+    - name: Upload Build Log (on failure)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log

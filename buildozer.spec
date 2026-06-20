@@ -12,20 +12,17 @@ source.exclude_dirs = tests, files, add ons, docs, .github, .venv, bin, .git
 
 version = 1.0.0
 
-# Requirements — small-model mobile build (~270 MB GGUF recommended)
+# Requirements — UI-only mobile build (AI deps need custom p4a recipes)
+# numpy, faiss-cpu, sentence-transformers, llama-cpp-python are NOT included here;
+# they require custom p4a recipes for Android cross-compilation.
+# Add them back when recipes/ is created.
 requirements =
     hostpython3==3.11.8,
     python3==3.11.8,
     kivy==2.3.1,
     sqlite3,
-    numpy,
     jinja2,
-    markupsafe==2.1.2,
-    pillow,
-    certifi,
-    charset-normalizer,
-    idna,
-    urllib3
+    markupsafe==2.1.2
 
 # Android settings
 android.permissions =

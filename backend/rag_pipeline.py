@@ -1,6 +1,11 @@
 """
 RAG Pipeline: Semantic chunking, FAISS indexing, and context retrieval.
 Runs fully offline using all-MiniLM-L6-v2 (22MB) + FAISS FlatIP index.
+
+Dependencies (not available in the UI-only Android APK):
+  - numpy, faiss-cpu, sentence-transformers
+These are imported conditionally; the module can be imported even without them,
+but RAGPipeline() will raise ImportError at construction time.
 """
 
 from __future__ import annotations
@@ -14,10 +19,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-import faiss
-import numpy as np
+try:
+    import numpy as np
+    import faiss
+    from sentence_transformers import SentenceTransformer
+    _HAS_RAG_DEPS = True
+except ImportError:
+    np = None  # type: ignore[assignment]
+    faiss = None  # type: ignore[assignment]
+    SentenceTransformer = None  # type: ignore[assignment,misc]
+    _HAS_RAG_DEPS = False
+
 from jinja2 import Template
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +235,11 @@ class RAGPipeline:
     """
 
     def __init__(self, data_dir: Path):
+        if not _HAS_RAG_DEPS:
+            raise ImportError(
+                "RAG dependencies not installed (numpy, faiss-cpu, sentence-transformers). "
+                "Install with: pip install numpy faiss-cpu sentence-transformers"
+            )
         self.data_dir = data_dir
         self.data_dir.mkdir(parents=True, exist_ok=True)
 

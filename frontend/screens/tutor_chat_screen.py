@@ -32,6 +32,10 @@ class TutorChatScreen(Screen):
         super().__init__(**kwargs)
         self.name = "tutor_chat"
         self.messages = []
+        self.current_ai_label = None
+        self.typing_event = None
+        self.typing_dots = 1
+        self._generating = False
         self._build_ui()
 
     def on_enter(self):
@@ -39,7 +43,11 @@ class TutorChatScreen(Screen):
         if not app.services.is_ai_ready() and not app.services._loading:
             app.services.load_ai_async(self._on_ai_reload)
 
-    def _on_ai_reload(self, ok: bool, err: str | None):
+    def on_leave(self, *args):
+        """Clean up typing animation when leaving screen mid-generation."""
+        self._cancel_typing_animation()
+
+    def _on_ai_reload(self, ok: bool, err):
         app = App.get_running_app()
         app.ai_status = app.services.ai_status_message()
 
@@ -103,6 +111,7 @@ class TutorChatScreen(Screen):
         self.message_input.text = ""
         self._add_message(query, is_user=True)
         self.send_btn.disabled = True
+        self._generating = True
 
         self.current_ai_label = self._add_message("...", is_user=False, return_label=True)
         self.typing_dots = 1
@@ -116,7 +125,7 @@ class TutorChatScreen(Screen):
             self.current_ai_label.text = "." * self.typing_dots
 
     def _cancel_typing_animation(self):
-        if hasattr(self, "typing_event") and self.typing_event:
+        if self.typing_event is not None:
             self.typing_event.cancel()
             self.typing_event = None
 
@@ -142,7 +151,11 @@ class TutorChatScreen(Screen):
             valign="top",
         )
         msg_label.bind(texture_size=msg_label.setter("size"))
-        msg_label.height = msg_label.texture_size[1] + 20
+        # Guard: texture_size may not be computed yet on first frame
+        if msg_label.texture_size[1] > 0:
+            msg_label.height = msg_label.texture_size[1] + 20
+        else:
+            msg_label.height = 40  # reasonable default until texture computes
 
         bubble.add_widget(msg_label)
         bubble.height = msg_label.height + 20
@@ -182,15 +195,19 @@ class TutorChatScreen(Screen):
     def _update_ai_label(self, text):
         if self.current_ai_label:
             self.current_ai_label.text = text
-            self.current_ai_label.height = self.current_ai_label.texture_size[1] + 20
-            bubble = self.current_ai_label.parent
-            if bubble:
-                bubble.height = self.current_ai_label.height + 20
-                msg_layout = bubble.parent
-                if msg_layout:
-                    msg_layout.height = bubble.height
+            # Guard: texture_size may be (0,0) if label hasn't rendered yet
+            tex_h = self.current_ai_label.texture_size[1]
+            if tex_h > 0:
+                self.current_ai_label.height = tex_h + 20
+                bubble = self.current_ai_label.parent
+                if bubble:
+                    bubble.height = self.current_ai_label.height + 20
+                    msg_layout = bubble.parent
+                    if msg_layout:
+                        msg_layout.height = bubble.height
 
     def _on_ai_complete(self):
+        self._generating = False
         self.send_btn.disabled = False
         self.current_ai_label = None
 

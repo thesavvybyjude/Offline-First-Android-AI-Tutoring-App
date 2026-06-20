@@ -1,5 +1,8 @@
 """
 Shared app services: DB, RAG, and on-device inference (no Flask subprocess).
+
+All heavy AI dependencies (llama-cpp-python, faiss, sentence-transformers, numpy)
+are imported lazily so the APK can launch even when they're not installed.
 """
 
 from __future__ import annotations
@@ -11,13 +14,38 @@ from typing import Callable, Optional
 
 from kivy.clock import Clock
 
-from backend.inference_engine import InferenceEngine
-from backend.rag_pipeline import RAGPipeline
-from backend.seed_data import seed_default_knowledge
 from backend.sm2_scheduler import SM2Scheduler
 from frontend.app_paths import ensure_app_storage, is_android
 
 logger = logging.getLogger(__name__)
+
+# --- Lazy import flags (set once at first use) ---
+_HAS_LLAMA = None
+_HAS_RAG = None
+
+
+def _check_llama() -> bool:
+    global _HAS_LLAMA
+    if _HAS_LLAMA is None:
+        try:
+            from llama_cpp import Llama  # noqa: F401
+            _HAS_LLAMA = True
+        except ImportError:
+            _HAS_LLAMA = False
+    return _HAS_LLAMA
+
+
+def _check_rag() -> bool:
+    global _HAS_RAG
+    if _HAS_RAG is None:
+        try:
+            import numpy  # noqa: F401
+            import faiss  # noqa: F401
+            from sentence_transformers import SentenceTransformer  # noqa: F401
+            _HAS_RAG = True
+        except ImportError:
+            _HAS_RAG = False
+    return _HAS_RAG
 
 
 class AppServices:
@@ -28,8 +56,8 @@ class AppServices:
         self.db_path: Path = paths["db_path"]
 
         self.scheduler: Optional[SM2Scheduler] = None
-        self.rag: Optional[RAGPipeline] = None
-        self.engine: Optional[InferenceEngine] = None
+        self.rag = None  # RAGPipeline | None
+        self.engine = None  # InferenceEngine | None
 
         self.student_id: Optional[str] = None
         self.grade_level: str = "SS2"
@@ -56,6 +84,8 @@ class AppServices:
         self.scheduler = SM2Scheduler(self.db_path)
         self.scheduler.init_db()
         self.scheduler.upsert_student(student_id, name, grade_level, school_id)
+
+        from backend.seed_data import seed_default_knowledge
         seeded = seed_default_knowledge(self.scheduler, student_id)
         logger.info("Seeded %d flashcards for %s", seeded, student_id)
 
@@ -80,25 +110,31 @@ class AppServices:
     def _load_ai_sync(self) -> tuple[bool, Optional[str]]:
         with self._lock:
             try:
-                try:
-                    from llama_cpp import Llama  # noqa: F401
-                except ImportError:
+                # --- Check llama-cpp-python ---
+                if not _check_llama():
                     return False, (
                         "llama-cpp-python not installed. "
                         "On desktop: pip install llama-cpp-python. "
                         "On Android APK: use a build with AI dependencies."
                     )
 
-                if self.rag is None:
+                # --- Load RAG (optional — graceful skip if deps missing) ---
+                if self.rag is None and _check_rag():
                     try:
+                        from backend.rag_pipeline import RAGPipeline
                         self.rag = RAGPipeline(self.data_dir)
                         self.rag.load(model_cache_dir=self.models_dir / "embeddings")
                     except Exception as rag_exc:
                         logger.warning("RAG load skipped: %s", rag_exc)
                         self.rag = None
 
+                # --- Load LLM ---
                 if self.engine is None:
-                    self.engine = InferenceEngine(models_dir=self.models_dir)
+                    from backend.inference_engine import InferenceEngine
+                    try:
+                        self.engine = InferenceEngine(models_dir=self.models_dir)
+                    except (FileNotFoundError, ValueError) as e:
+                        return False, f"Model not found — run: python setup_env.py ({e})"
                     ram = 3.0 if is_android() else 4.0
                     self.engine.load(ram_gb=ram)
 
@@ -107,6 +143,11 @@ class AppServices:
                     return False, "Model file not found — run: python setup_env.py"
                 self._ai_error = None
                 return True, None
+            except FileNotFoundError as exc:
+                logger.warning("AI model file missing: %s", exc)
+                self._ai_ready = False
+                self._ai_error = str(exc)
+                return False, str(exc)
             except Exception as exc:
                 logger.exception("AI load failed")
                 self._ai_ready = False
@@ -129,7 +170,7 @@ class AppServices:
         return "AI not loaded — run setup_env.py to download a model"
 
     def build_tutor_prompt(self, query: str) -> tuple[str, list[str]]:
-        if self.rag and self.rag.is_loaded:
+        if self.rag and hasattr(self.rag, "is_loaded") and self.rag.is_loaded:
             pkg = self.rag.build_prompt(query, grade_level=self.grade_level)
             sources = [c.source for c in pkg.context_chunks]
             return pkg.prompt, sources

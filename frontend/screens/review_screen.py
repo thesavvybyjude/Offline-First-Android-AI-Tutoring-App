@@ -164,9 +164,11 @@ class ReviewScreen(Screen):
         self.current_record, self.current_item = self.items_queue.pop(0)
         self.is_flipped = False
         
-        # Show question
-        self.question_label.text = self.current_item.question
-        self.answer_label.text = self.current_item.answer
+        # Show question (guard against empty/None text)
+        q_text = self.current_item.question if self.current_item.question else "(No question text)"
+        a_text = self.current_item.answer if self.current_item.answer else "(No answer text)"
+        self.question_label.text = q_text
+        self.answer_label.text = a_text
         self.answer_label.opacity = 0
         
         # Reset buttons
