@@ -16,6 +16,7 @@ from kivy.clock import Clock
 
 from backend.sm2_scheduler import SM2Scheduler
 from frontend.app_paths import ensure_app_storage, is_android
+from frontend.model_downloader import ModelDownloader
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class AppServices:
         self.scheduler: Optional[SM2Scheduler] = None
         self.rag = None  # RAGPipeline | None
         self.engine = None  # InferenceEngine | None
+        self.downloader = ModelDownloader(self.models_dir)
 
         self.student_id: Optional[str] = None
         self.grade_level: str = "SS2"
@@ -140,14 +142,14 @@ class AppServices:
 
                 self._ai_ready = self.engine is not None and self.engine.is_loaded
                 if not self._ai_ready:
-                    return False, "Model file not found — run: python setup_env.py"
+                    return False, "Model file not found — download required."
                 self._ai_error = None
                 return True, None
             except FileNotFoundError as exc:
                 logger.warning("AI model file missing: %s", exc)
                 self._ai_ready = False
-                self._ai_error = str(exc)
-                return False, str(exc)
+                self._ai_error = "Model not downloaded."
+                return False, self._ai_error
             except Exception as exc:
                 logger.exception("AI load failed")
                 self._ai_ready = False
@@ -166,8 +168,10 @@ class AppServices:
             model_name = self.engine.model_path.name if self.engine else "model"
             return f"AI ready ({model_name})"
         if self._ai_error:
+            if "download" in self._ai_error.lower() or not self.downloader.model_exists():
+                return f"AI offline: Model download required."
             return f"AI offline: {self._ai_error}"
-        return "AI not loaded — run setup_env.py to download a model"
+        return "AI not loaded — model download required."
 
     def build_tutor_prompt(self, query: str) -> tuple[str, list[str]]:
         if self.rag and hasattr(self.rag, "is_loaded") and self.rag.is_loaded:

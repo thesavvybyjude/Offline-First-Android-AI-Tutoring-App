@@ -8,21 +8,26 @@ package.domain = org.aitutor
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json,gguf,index
 source.include_patterns = models/*.gguf, data/**
-source.exclude_dirs = tests, files, add ons, docs, .github, .venv, bin, .git
+source.exclude_dirs = tests, files, add ons, docs, .github, .venv, bin, .git, recipes
 
 version = 1.0.0
 
-# Requirements — UI-only mobile build (AI deps need custom p4a recipes)
-# numpy, faiss-cpu, sentence-transformers, llama-cpp-python are NOT included here;
-# they require custom p4a recipes for Android cross-compilation.
-# Add them back when recipes/ is created.
+# Requirements — full AI build with on-device inference
+# numpy 1.24.4: known to build with p4a (2.x has C++ STL issues)
+# llama-cpp-python: on-device LLM inference (custom recipe in ./recipes)
+# faiss-cpu: vector similarity search for RAG (custom recipe)
+# sentence-transformers: embedding model shim (custom recipe, ONNX fallback)
 requirements =
     hostpython3==3.11.8,
     python3==3.11.8,
     kivy==2.3.1,
     sqlite3,
+    numpy==1.24.4,
     jinja2,
-    markupsafe==2.1.2
+    markupsafe==2.1.2,
+    llama-cpp-python==0.2.90,
+    faiss-cpu==1.8.0,
+    sentence-transformers==3.0.0
 
 # Android settings
 android.permissions =
@@ -61,6 +66,11 @@ bin_dir = ./bin
 android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b
 android.sdk_path = ~/.buildozer/android/platform/android-sdk
 
-# Note: llama-cpp-python, faiss-cpu, sentence-transformers require custom p4a recipes.
-# This APK ships UI + flashcards; place a GGUF in models/ before build for on-device chat.
-# Run: python setup_env.py  (downloads SmolLM2-360M ~270MB)
+# Custom p4a recipes for AI dependencies
+# llama-cpp-python: CMake cross-compile for ARM64 CPU-only
+# faiss-cpu: CMake + OpenBLAS for ARM64
+# sentence-transformers: ONNX Runtime shim (avoids PyTorch)
+p4a.local_recipes = ./recipes
+
+# Use latest p4a for best NDK compatibility
+p4a.branch = develop
