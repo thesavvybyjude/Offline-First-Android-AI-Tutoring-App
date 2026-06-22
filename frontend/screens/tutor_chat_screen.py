@@ -36,6 +36,8 @@ class TutorChatScreen(Screen):
         self.typing_event = None
         self.typing_dots = 1
         self._generating = False
+        self._shown_loading_msg = False
+        self._ai_ready_event = None
         self._build_ui()
 
     def on_enter(self):
@@ -44,12 +46,36 @@ class TutorChatScreen(Screen):
             app.services.load_ai_async(self._on_ai_reload)
 
     def on_leave(self, *args):
-        """Clean up typing animation when leaving screen mid-generation."""
+        """Clean up animations and timers when leaving screen."""
         self._cancel_typing_animation()
+        self._cancel_ai_ready_check()
 
     def _on_ai_reload(self, ok: bool, err):
         app = App.get_running_app()
         app.ai_status = app.services.ai_status_message()
+        if ok:
+            self.send_btn.disabled = False
+            self._add_message("AI is ready! Send your question.", is_user=False)
+            self._shown_loading_msg = False
+            self._cancel_ai_ready_check()
+
+    def _schedule_ai_ready_check(self):
+        """Poll every 2s to re-enable Send once AI is ready."""
+        if self._ai_ready_event is not None:
+            return  # already polling
+        def _check(dt):
+            app = App.get_running_app()
+            if app.services.is_ai_ready():
+                self.send_btn.disabled = False
+                self._add_message("AI is ready! Send your question.", is_user=False)
+                self._shown_loading_msg = False
+                self._cancel_ai_ready_check()
+        self._ai_ready_event = Clock.schedule_interval(_check, 2.0)
+
+    def _cancel_ai_ready_check(self):
+        if self._ai_ready_event is not None:
+            self._ai_ready_event.cancel()
+            self._ai_ready_event = None
 
     def _build_ui(self):
         layout = BoxLayout(orientation="vertical", padding=10, spacing=10)
@@ -102,10 +128,22 @@ class TutorChatScreen(Screen):
 
         app = App.get_running_app()
         if not app.services.is_ai_ready():
-            self._add_message(
-                app.services.ai_status_message() + "\nRun setup_env.py to download a model.",
-                is_user=False,
-            )
+            # Only show the loading message ONCE, not on every tap
+            if not self._shown_loading_msg:
+                status = app.services.ai_status_message()
+                if app.services._loading:
+                    msg = status + "\nPlease wait — Send will enable when ready."
+                elif app.services.downloader.model_exists():
+                    msg = status + "\nModel found — loading, please wait."
+                    app.services.load_ai_async(self._on_ai_reload)
+                else:
+                    msg = status + "\nRun setup_env.py to download a model."
+                self._add_message(msg, is_user=False)
+                self._shown_loading_msg = True
+
+            # Disable send and poll for AI readiness
+            self.send_btn.disabled = True
+            self._schedule_ai_ready_check()
             return
 
         self.message_input.text = ""

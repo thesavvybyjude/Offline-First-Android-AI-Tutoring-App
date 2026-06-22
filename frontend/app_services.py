@@ -120,17 +120,18 @@ class AppServices:
                         "On Android APK: use a build with AI dependencies."
                     )
 
-                # --- Load RAG (optional — graceful skip if deps missing) ---
-                if self.rag is None and _check_rag():
-                    try:
-                        from backend.rag_pipeline import RAGPipeline
-                        self.rag = RAGPipeline(self.data_dir)
-                        self.rag.load(model_cache_dir=self.models_dir / "embeddings")
-                    except Exception as rag_exc:
-                        logger.warning("RAG load skipped: %s", rag_exc)
-                        self.rag = None
+                # --- Check if a GGUF model exists before trying to load ---
+                if not self.downloader.model_exists():
+                    self._ai_ready = False
+                    self._ai_error = "No GGUF model found in models/ directory."
+                    return False, (
+                        "No GGUF model found. Place a .gguf model file in "
+                        f"{self.models_dir} or run: python setup_env.py"
+                    )
 
-                # --- Load LLM ---
+                logger.info("Model found in %s — loading…", self.models_dir)
+
+                # --- Load LLM FIRST (so chat works immediately) ---
                 if self.engine is None:
                     from backend.inference_engine import InferenceEngine
                     try:
@@ -142,13 +143,26 @@ class AppServices:
 
                 self._ai_ready = self.engine is not None and self.engine.is_loaded
                 if not self._ai_ready:
-                    return False, "Model file not found — download required."
+                    return False, "Model loaded but engine not ready."
                 self._ai_error = None
+
+                # --- Load RAG AFTER LLM (optional, can be slow due to
+                #     embedding model download from HuggingFace) ---
+                if self.rag is None and _check_rag():
+                    try:
+                        from backend.rag_pipeline import RAGPipeline
+                        self.rag = RAGPipeline(self.data_dir)
+                        self.rag.load(model_cache_dir=self.models_dir / "embeddings")
+                        logger.info("RAG pipeline loaded")
+                    except Exception as rag_exc:
+                        logger.warning("RAG load skipped: %s", rag_exc)
+                        self.rag = None
+
                 return True, None
             except FileNotFoundError as exc:
                 logger.warning("AI model file missing: %s", exc)
                 self._ai_ready = False
-                self._ai_error = "Model not downloaded."
+                self._ai_error = "Model not found."
                 return False, self._ai_error
             except Exception as exc:
                 logger.exception("AI load failed")
@@ -168,10 +182,12 @@ class AppServices:
             model_name = self.engine.model_path.name if self.engine else "model"
             return f"AI ready ({model_name})"
         if self._ai_error:
-            if "download" in self._ai_error.lower() or not self.downloader.model_exists():
-                return f"AI offline: Model download required."
-            return f"AI offline: {self._ai_error}"
-        return "AI not loaded — model download required."
+            if self.downloader.model_exists():
+                return f"AI offline: {self._ai_error}"
+            return "AI offline: No model found — download required."
+        if self.downloader.model_exists():
+            return "AI not loaded yet."
+        return "AI not loaded — no model found."
 
     def build_tutor_prompt(self, query: str) -> tuple[str, list[str]]:
         if self.rag and hasattr(self.rag, "is_loaded") and self.rag.is_loaded:

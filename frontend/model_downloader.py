@@ -48,12 +48,20 @@ class ModelDownloader:
         return self.models_dir / DEFAULT_MODEL_FILENAME
 
     def model_exists(self) -> bool:
-        """Check if the model is already downloaded and reasonably sized."""
+        """Check if ANY valid GGUF model is already in models_dir."""
+        # Check the default model first
         p = self.model_path
-        if not p.exists():
-            return False
-        # Sanity check: file should be > 100MB for a real GGUF
-        return p.stat().st_size > 100_000_000
+        if p.exists() and p.stat().st_size > 100_000_000:
+            return True
+        # Check for any other GGUF file that's large enough to be real
+        return self.find_existing_model() is not None
+
+    def find_existing_model(self) -> Optional[Path]:
+        """Return the path to any existing GGUF model, or None."""
+        for gguf in sorted(self.models_dir.glob("*.gguf"), key=lambda p: p.stat().st_size):
+            if gguf.stat().st_size > 100_000_000:
+                return gguf
+        return None
 
     def download_sync(
         self,
