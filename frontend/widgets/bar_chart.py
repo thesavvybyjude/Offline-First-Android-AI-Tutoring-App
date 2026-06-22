@@ -31,25 +31,26 @@ class BarChart(BoxLayout):
             # The bar area
             bar_area = Widget(size_hint_y=1)
             # Bind to draw the bar
-            # We use a closure to capture the current val
-            def draw_bar(instance, v=val, *args):
-                instance.canvas.before.clear()
-                with instance.canvas.before:
-                    # Background track
-                    Color(*get_color("surface-variant"))
-                    from kivy.metrics import dp
-                    r = dp(4)
-                    RoundedRectangle(pos=instance.pos, size=instance.size, radius=[r, r, 0, 0])
+            with bar_area.canvas.before:
+                Color(*get_color("surface-variant"))
+                from kivy.metrics import dp
+                r = dp(4)
+                bg_rect = RoundedRectangle(pos=bar_area.pos, size=bar_area.size, radius=[r, r, 0, 0])
+                Color(*get_color("primary"))
+                fill_rect = RoundedRectangle(pos=bar_area.pos, size=(bar_area.width, 0), radius=[r, r, 0, 0])
+                
+            def make_draw_bar(v, bg, fill, rad):
+                def draw_bar(instance, *args):
+                    bg.pos = instance.pos
+                    bg.size = instance.size
                     
-                    # Fill
-                    # Simulate gradient with solid primary
-                    Color(*get_color("primary"))
                     fill_height = instance.height * v
-                    fill_y = instance.y
-                    if fill_height > 0:
-                        RoundedRectangle(pos=(instance.x, fill_y), size=(instance.width, fill_height), radius=[r, r, 0, 0])
+                    fill.pos = (instance.x, instance.y)
+                    fill.size = (instance.width, fill_height)
+                return draw_bar
             
-            bar_area.bind(pos=draw_bar, size=draw_bar)
+            bar_draw_func = make_draw_bar(val, bg_rect, fill_rect, r)
+            bar_area.bind(pos=bar_draw_func, size=bar_draw_func)
             col.add_widget(bar_area)
             
             # Label

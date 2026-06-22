@@ -16,6 +16,7 @@ from kivy.uix.button import ButtonBehavior
 from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
 from kivy.clock import Clock
 from kivy.metrics import dp
+from kivy.uix.widget import Widget
 
 from frontend.theme import get_color, get_font, RADIUS
 from frontend.widgets.top_bar import TopBar
@@ -45,17 +46,18 @@ class SecondaryButton(ButtonBehavior, BoxLayout):
         left_box = BoxLayout(orientation='horizontal', spacing='12dp', size_hint_x=1)
         if self.icon:
             # Placeholder for icon
-            icon_lbl = Label(text=self.icon, color=get_color("primary"), size_hint_x=None, width='32dp', font_size='24sp')
+            icon_lbl = Label(text=self.icon, color=get_color("white"), font_name="MaterialSymbols", size_hint_x=None, width='32dp', font_size='24sp')
             left_box.add_widget(icon_lbl)
             
         font = get_font("headline-sm")
         lbl = Label(
             text=self.btn_text,
-            color=get_color("on-surface"),
+            color=get_color("white"),
             font_name=font["font_name"],
             font_size=font["font_size"],
             bold=True,
-            halign='left'
+            halign='left',
+            valign='middle'
         )
         lbl.bind(size=lbl.setter('text_size'))
         left_box.add_widget(lbl)
@@ -66,6 +68,10 @@ class SecondaryButton(ButtonBehavior, BoxLayout):
         self.add_widget(arrow)
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             if self.state == 'down':
@@ -99,17 +105,18 @@ class PrimaryCardButton(ButtonBehavior, BoxLayout):
         # Left content
         left_box = BoxLayout(orientation='horizontal', spacing='12dp', size_hint_x=1)
         if self.icon:
-            icon_lbl = Label(text=self.icon, color=get_color("on-primary-container"), size_hint_x=None, width='32dp', font_size='24sp')
+            icon_lbl = Label(text=self.icon, color=get_color("white"), font_name="MaterialSymbols", size_hint_x=None, width='32dp', font_size='24sp')
             left_box.add_widget(icon_lbl)
             
         font = get_font("headline-sm")
         lbl = Label(
             text=self.btn_text,
-            color=get_color("on-primary-container"),
+            color=get_color("white"),
             font_name=font["font_name"],
             font_size=font["font_size"],
             bold=True,
-            halign='left'
+            halign='left',
+            valign='middle'
         )
         lbl.bind(size=lbl.setter('text_size'))
         left_box.add_widget(lbl)
@@ -120,6 +127,10 @@ class PrimaryCardButton(ButtonBehavior, BoxLayout):
         self.add_widget(arrow)
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             r, g, b, a = get_color("primary-container")
@@ -140,8 +151,6 @@ class DashboardScreen(Screen):
         self.student_id = None
         self.student_name = "Student"
         
-        self.bind(pos=self._update_bg, size=self._update_bg)
-        
         # UI Elements that need updating
         self.streak_lbl = None
         self.greet_lbl = None
@@ -151,13 +160,15 @@ class DashboardScreen(Screen):
         self.stat_mastered = None
         self.bar_chart = None
         
-        self._build_ui()
-
-    def _update_bg(self, *args):
-        self.canvas.before.clear()
         with self.canvas.before:
             Color(*get_color("background"))
-            Rectangle(pos=self.pos, size=self.size)
+            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+        def update_bg(instance, value):
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+        self.bind(pos=update_bg, size=update_bg)
+        
+        self._build_ui()
 
     def on_enter(self):
         app = App.get_running_app()
@@ -186,13 +197,13 @@ class DashboardScreen(Screen):
     def _build_ui(self):
         main_layout = BoxLayout(orientation='vertical')
         
-        # Top App Bar
-        top_bar = TopBar(title="ZIDON AI")
+        # Top Bar
+        top_bar = TopBar(title="OFFLINE AI TUTOR")
         main_layout.add_widget(top_bar)
         
         # Scrollable Content
         scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
-        content = BoxLayout(orientation='vertical', padding=['16dp', '24dp', '16dp', '80dp'], spacing='24dp', size_hint_y=None)
+        content = BoxLayout(orientation='vertical', padding=['16dp', '24dp', '16dp', '24dp'], spacing='24dp', size_hint_y=None)
         content.bind(minimum_height=content.setter('height'))
         
         # Greeting & Streak
@@ -229,17 +240,14 @@ class DashboardScreen(Screen):
                                padding=['8dp', '4dp'], spacing='4dp', pos_hint={'center_y': 0.5})
         with streak_badge.canvas.before:
             Color(*get_color("surface-container-high"))
-            RoundedRectangle(pos=streak_badge.pos, size=streak_badge.size, radius=[dp(18)])
+            bg_rect = RoundedRectangle(pos=streak_badge.pos, size=streak_badge.size, radius=[dp(18)])
             Color(1, 1, 1, 0.1)
-            Line(rounded_rectangle=(streak_badge.x, streak_badge.y, streak_badge.width, streak_badge.height, dp(18)), width=1)
+            bg_line = Line(rounded_rectangle=(streak_badge.x, streak_badge.y, streak_badge.width, streak_badge.height, dp(18)), width=1)
         
         def update_badge(instance, value):
-            instance.canvas.before.clear()
-            with instance.canvas.before:
-                Color(*get_color("surface-container-high"))
-                RoundedRectangle(pos=instance.pos, size=instance.size, radius=[dp(18)])
-                Color(1, 1, 1, 0.1)
-                Line(rounded_rectangle=(instance.x, instance.y, instance.width, instance.height, dp(18)), width=1)
+            bg_rect.pos = instance.pos
+            bg_rect.size = instance.size
+            bg_line.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, dp(18))
         streak_badge.bind(pos=update_badge, size=update_badge)
         
         self.streak_lbl = Label(text="0 Day Streak", color=get_color("tertiary-fixed-dim"),
@@ -291,10 +299,10 @@ class DashboardScreen(Screen):
         actions_grid = GridLayout(cols=1, spacing='16dp', size_hint_y=None)
         actions_grid.bind(minimum_height=actions_grid.setter('height'))
         
-        btn_review = PrimaryCardButton(text="Start Review", icon="P")
+        btn_review = PrimaryCardButton(text="Start Review", icon="\ue037") # play_arrow
         btn_review.bind(on_release=self.go_to_review)
         
-        btn_tutor = SecondaryButton(text="Ask AI Tutor", icon="C")
+        btn_tutor = SecondaryButton(text="Ask AI Tutor", icon="\ue0ca") # chat
         btn_tutor.bind(on_release=self.go_to_tutor)
         
         actions_grid.add_widget(btn_review)

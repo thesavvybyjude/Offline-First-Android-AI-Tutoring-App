@@ -29,19 +29,22 @@ class LoginScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = 'login'
-        self.bind(pos=self._update_bg, size=self._update_bg)
-        self._build_ui()
-        
-    def _update_bg(self, *args):
-        self.canvas.before.clear()
         with self.canvas.before:
             Color(*get_color("background"))
-            Rectangle(pos=self.pos, size=self.size)
+            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
             
             # Subtle top gradient/glow
             Color(*get_color("primary-container")[:3] + (0.1,))
-            RoundedRectangle(pos=(self.center_x - dp(150), self.top - dp(300)), 
+            self.bg_glow = RoundedRectangle(pos=(self.center_x - dp(150), self.top - dp(300)), 
                            size=(dp(300), dp(300)), radius=[dp(150)])
+                           
+        def update_bg(instance, value):
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+            self.bg_glow.pos = (instance.center_x - dp(150), instance.top - dp(300))
+        self.bind(pos=update_bg, size=update_bg)
+        
+        self._build_ui()
 
     def _build_ui(self):
         # Main layout
@@ -58,7 +61,7 @@ class LoginScreen(Screen):
         
         brand_font = get_font("headline-md")
         brand = Label(
-            text="ZIDON AI",
+            text="OFFLINE AI",
             color=get_color("primary-fixed-dim"),
             font_name=brand_font["font_name"],
             font_size=brand_font["font_size"],
@@ -108,7 +111,7 @@ class LoginScreen(Screen):
         typo_box = BoxLayout(orientation='vertical', size_hint_y=None, height='80dp', spacing='8dp')
         title_font = get_font("headline-lg-mobile")
         title = Label(
-            text="Learn Smarter.\n[color=#b4c5ff]Anywhere.[/color]",
+            text="Offline AI Tutor\n[color=#b4c5ff]Everywhere.[/color]",
             markup=True,
             font_name=title_font["font_name"],
             font_size=title_font["font_size"],
@@ -193,9 +196,9 @@ class LoginScreen(Screen):
         form.add_widget(off_box)
         
         # Submit Button
-        btn = GradientButton(text="Sign In to ZIDON")
-        btn.bind(on_release=self.on_login)
-        form.add_widget(btn)
+        self.submit_btn = GradientButton(text="Sign In to Offline Tutor")
+        self.submit_btn.bind(on_release=self.on_login)
+        form.add_widget(self.submit_btn)
         
         main_layout.add_widget(form)
         
@@ -208,12 +211,20 @@ class LoginScreen(Screen):
         self.add_widget(main_layout)
 
     def _update_widget_canvas(self, instance, value):
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._deferred_update_widget_canvas(instance), -1)
+
+    def _deferred_update_widget_canvas(self, instance):
         instance.canvas.before.clear()
         with instance.canvas.before:
             Color(*get_color("primary-container"))
             RoundedRectangle(pos=instance.pos, size=instance.size, radius=[dp(24)])
 
     def _update_circle(self, instance, value):
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._deferred_update_circle(instance), -1)
+
+    def _deferred_update_circle(self, instance):
         instance.canvas.before.clear()
         with instance.canvas.before:
             Color(*get_color("surface-container-high"))
@@ -222,6 +233,10 @@ class LoginScreen(Screen):
             Line(circle=(instance.center_x, instance.center_y, dp(80)), width=1)
 
     def _update_badge(self, instance, value):
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._deferred_update_badge(instance), -1)
+
+    def _deferred_update_badge(self, instance):
         instance.canvas.before.clear()
         with instance.canvas.before:
             Color(*get_color("surface-container-highest"))
@@ -230,6 +245,10 @@ class LoginScreen(Screen):
             Line(rounded_rectangle=(instance.x, instance.y, instance.width, instance.height, dp(14)), width=1)
 
     def _update_off_box(self, instance, value):
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._deferred_update_off_box(instance), -1)
+
+    def _deferred_update_off_box(self, instance):
         instance.canvas.before.clear()
         with instance.canvas.before:
             Color(*get_color("surface-container-low"))
@@ -249,13 +268,29 @@ class LoginScreen(Screen):
             self.student_id_input.hint_text = 'ID must be >= 2 chars'
             self.student_id_input.text = ''
             return
+            
+        # UI Feedback for loading
+        self.submit_btn.text = "Loading AI... Please wait"
+        self.submit_btn.disabled = True
+        self.student_id_input.disabled = True
+        self.school_code_input.disabled = True
+        self.offline_switch.disabled = True
         
         # Store user data in app and bootstrap DB + AI
         app = App.get_running_app()
         display_name = student_id
-        app.bootstrap_student(student_id, display_name, school_code)
         app.offline_mode = offline_mode
+        
+        def on_ai_ready(ok, err):
+            # Re-enable UI
+            self.submit_btn.text = "Sign In to Offline Tutor"
+            self.submit_btn.disabled = False
+            self.student_id_input.disabled = False
+            self.school_code_input.disabled = False
+            self.offline_switch.disabled = False
+            
+            # Navigate to dashboard
+            self.manager.current = "dashboard"
+            print(f"Login: Student ID={student_id}, School={school_code}, Offline={offline_mode}, AI OK={ok}")
 
-        # Navigate to dashboard
-        self.manager.current = "dashboard"
-        print(f"Login: Student ID={student_id}, School={school_code}, Offline={offline_mode}")
+        app.bootstrap_student(student_id, display_name, school_code, on_complete=on_ai_ready)

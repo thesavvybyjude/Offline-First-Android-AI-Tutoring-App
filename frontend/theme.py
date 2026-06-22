@@ -45,17 +45,27 @@ COLORS = {
     "transparent": (0, 0, 0, 0)
 }
 
+from kivy.core.text import LabelBase
+import os
+
+# Define font paths
+FONTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'assets', 'fonts')
+
+# Register Material Symbols
+LabelBase.register(name="MaterialSymbols", fn_regular=os.path.join(FONTS_DIR, "material-symbols-outlined.ttf"))
+
 # --- Typography ---
-# Uses Manrope font family, fallback to Roboto if not loaded
 FONTS = {
-    "headline-lg": {"font_name": "Manrope-Bold", "font_size": "32sp"},
-    "headline-lg-mobile": {"font_name": "Manrope-Bold", "font_size": "28sp"},
-    "headline-md": {"font_name": "Manrope-SemiBold", "font_size": "24sp"},
-    "headline-sm": {"font_name": "Manrope-SemiBold", "font_size": "20sp"},
-    "body-lg": {"font_name": "Manrope-Regular", "font_size": "16sp"},
-    "body-md": {"font_name": "Manrope-Regular", "font_size": "14sp"},
-    "label-lg": {"font_name": "Manrope-SemiBold", "font_size": "14sp"},
-    "label-sm": {"font_name": "Manrope-Medium", "font_size": "12sp"},
+    "headline-lg": {"font_name": "Roboto-Bold", "font_size": "32sp"},
+    "headline-lg-mobile": {"font_name": "Roboto-Bold", "font_size": "28sp"},
+    "headline-md": {"font_name": "Roboto-Bold", "font_size": "24sp"},
+    "headline-sm": {"font_name": "Roboto-Bold", "font_size": "20sp"},
+    "body-lg": {"font_name": "Roboto", "font_size": "16sp"},
+    "body-md": {"font_name": "Roboto", "font_size": "14sp"},
+    "label-lg": {"font_name": "Roboto-Bold", "font_size": "14sp"},
+    "label-sm": {"font_name": "Roboto", "font_size": "12sp"},
+    "icon": {"font_name": "MaterialSymbols", "font_size": "24sp"},
+    "icon-lg": {"font_name": "MaterialSymbols", "font_size": "32sp"},
 }
 
 # --- Spacing ---
@@ -80,7 +90,7 @@ RADIUS = {
 
 def get_color(name: str) -> tuple[float, float, float, float]:
     """Get color RGBA tuple by design token name."""
-    return COLORS.get(name, COLORS["error"])
+    return tuple(COLORS.get(name, COLORS["error"]))
 
 def get_font(style: str) -> dict[str, str]:
     """Get font dictionary (font_name, font_size) by style name."""

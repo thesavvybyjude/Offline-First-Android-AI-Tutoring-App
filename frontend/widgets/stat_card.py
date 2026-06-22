@@ -87,6 +87,10 @@ class StatCard(BoxLayout):
         self.add_widget(val_layout)
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             Color(*self.bg_color)

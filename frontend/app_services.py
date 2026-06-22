@@ -189,13 +189,13 @@ class AppServices:
             return "AI not loaded yet."
         return "AI not loaded — no model found."
 
-    def build_tutor_prompt(self, query: str) -> tuple[str, list[str]]:
+    def build_tutor_prompt(self, query: str, subject: str = "Biology") -> tuple[str, list[str]]:
         if self.rag and hasattr(self.rag, "is_loaded") and self.rag.is_loaded:
-            pkg = self.rag.build_prompt(query, grade_level=self.grade_level)
+            pkg = self.rag.build_prompt(query, grade_level=self.grade_level, subject=subject)
             sources = [c.source for c in pkg.context_chunks]
             return pkg.prompt, sources
         fallback = (
-            f"### System\nYou are a tutor for Nigerian SS2 students.\n\n"
+            f"### System\nYou are a tutor for Nigerian SS1 {subject} students.\n\n"
             f"### Student\n{query}\n\n### Tutor Response\n"
         )
         return fallback, []

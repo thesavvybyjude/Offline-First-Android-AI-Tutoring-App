@@ -19,6 +19,14 @@ class ChatBubble(BoxLayout):
         
         # Let parent handle size_hint_x based on alignment
         super().__init__(**kwargs)
+        
+        with self.canvas.before:
+            self.bg_color_inst = Color(*get_color("user-bubble"))
+            self.bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[0,0,0,0])
+            self.line_color = Color(1, 1, 1, 0.1)
+            from kivy.graphics import Line
+            self.bg_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, 0,0,0,0), width=1)
+            
         self.bind(pos=self._update_canvas, size=self._update_canvas)
         self.bind(text=self._build_ui)
         self._build_ui()
@@ -38,10 +46,13 @@ class ChatBubble(BoxLayout):
             with avatar.canvas.before:
                 Color(*get_color("primary-container"))
                 from kivy.metrics import dp
-                RoundedRectangle(pos=avatar.pos, size=avatar.size, radius=[dp(12)])
-            avatar.bind(pos=lambda obj, val: self._update_avatar_bg(obj), size=lambda obj, val: self._update_avatar_bg(obj))
+                av_rect = RoundedRectangle(pos=avatar.pos, size=avatar.size, radius=[dp(12)])
+            def update_avatar_bg(instance, value):
+                av_rect.pos = instance.pos
+                av_rect.size = instance.size
+            avatar.bind(pos=update_avatar_bg, size=update_avatar_bg)
             
-            name = Label(text="Zidon AI", color=get_color("on-surface-variant"),
+            name = Label(text="Offline AI Tutor", color=get_color("on-surface-variant"),
                          font_name=get_font("label-sm")["font_name"],
                          font_size=get_font("label-sm")["font_size"],
                          halign='left', valign='middle')
@@ -71,38 +82,22 @@ class ChatBubble(BoxLayout):
         
         # Adjust own height based on children
         self.bind(minimum_height=self.setter('height'))
-
-    def _update_avatar_bg(self, avatar):
-        avatar.canvas.before.clear()
-        with avatar.canvas.before:
-            Color(*get_color("primary-container"))
-            from kivy.metrics import dp
-            RoundedRectangle(pos=avatar.pos, size=avatar.size, radius=[dp(12)])
+        self._update_canvas()
 
     def _update_canvas(self, *args):
-        self.canvas.before.clear()
-        with self.canvas.before:
-            if self.is_user:
-                Color(*get_color("user-bubble"))
-            else:
-                # Mock a gradient with a solid color for now
-                # Kivy gradients require custom texture generation
-                Color(*get_color("secondary-container"))
-                
-            from kivy.metrics import dp
+        if self.is_user:
+            self.bg_color_inst.rgba = get_color("user-bubble")
+        else:
+            self.bg_color_inst.rgba = get_color("secondary-container")
             
-            # Custom radius based on user vs AI
-            r = dp(16)
-            if self.is_user:
-                # Rounded corners except bottom-right
-                radius = [r, r, r, dp(2)]
-            else:
-                # Rounded corners except bottom-left
-                radius = [r, r, dp(2), r]
-                
-            RoundedRectangle(pos=self.pos, size=self.size, radius=radius)
+        from kivy.metrics import dp
+        r = dp(16)
+        if self.is_user:
+            radius = [r, r, r, dp(2)]
+        else:
+            radius = [r, r, dp(2), r]
             
-            # Subtle edge highlight
-            Color(1, 1, 1, 0.1)
-            from kivy.graphics import Line
-            Line(rounded_rectangle=(self.x, self.y, self.width, self.height, *radius), width=1)
+        self.bg_rect.pos = self.pos
+        self.bg_rect.size = self.size
+        self.bg_rect.radius = radius
+        self.bg_line.rounded_rectangle = (self.x, self.y, self.width, self.height, *radius)

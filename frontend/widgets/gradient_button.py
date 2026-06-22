@@ -22,7 +22,16 @@ class GradientButton(ButtonBehavior, BoxLayout):
         self.height = '48dp' # touch-target
         super().__init__(**kwargs)
         
-        self.bind(pos=self._update_canvas, size=self._update_canvas)
+        with self.canvas.before:
+            self.bg_color_inst = Color(*self.bg_color)
+            from kivy.metrics import dp
+            r_val = float(str(RADIUS['xl']).replace('dp', ''))
+            self.bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(r_val)])
+            
+        def update_bg(instance, value):
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+        self.bind(pos=update_bg, size=update_bg)
         self.bind(state=self._on_state)
         
         self._build_ui()
@@ -31,14 +40,12 @@ class GradientButton(ButtonBehavior, BoxLayout):
         self.clear_widgets()
         
         if self.icon:
-            # We use a standard label for icon if it's a unicode/material symbol, 
-            # but for now we'll just use a simple label or omit if no font
             icon_lbl = Label(
                 text=self.icon, 
                 color=self.text_color,
                 size_hint_x=None, 
                 width='24dp',
-                font_name="Roboto" # Fallback
+                font_name="MaterialSymbols" # Uses Material Symbols
             )
             self.add_widget(icon_lbl)
             
@@ -52,25 +59,20 @@ class GradientButton(ButtonBehavior, BoxLayout):
         )
         self.add_widget(lbl)
 
-    def _update_canvas(self, *args):
-        self.canvas.before.clear()
-        with self.canvas.before:
-            if self.state == 'down':
-                # Darker when pressed
-                r, g, b, a = self.bg_color
-                Color(r*0.8, g*0.8, b*0.8, a)
-            else:
-                Color(*self.bg_color)
-                
-            from kivy.metrics import dp
-            r_val = float(str(RADIUS['xl']).replace('dp', ''))
-            RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(r_val)])
-
     def _on_state(self, instance, value):
-        self._update_canvas()
+        from kivy.animation import Animation
+        if self.state == 'down':
+            # Darker and smaller
+            anim = Animation(opacity=0.7, duration=0.1)
+            anim.start(self)
+        else:
+            anim = Animation(opacity=1.0, duration=0.2)
+            anim.start(self)
         
     def on_text(self, instance, value):
-        self._build_ui()
+        if getattr(self, 'canvas', None) is not None:
+            self._build_ui()
         
     def on_icon(self, instance, value):
-        self._build_ui()
+        if getattr(self, 'canvas', None) is not None:
+            self._build_ui()

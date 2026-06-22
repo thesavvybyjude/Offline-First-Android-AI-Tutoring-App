@@ -39,6 +39,10 @@ class StyledTextInput(TextInput):
         self.bind(pos=self._update_canvas, size=self._update_canvas, focus=self._update_canvas)
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             Color(*get_color("surface-container-high"))
@@ -65,6 +69,10 @@ class SecondaryButton(ButtonBehavior, BoxLayout):
         self.add_widget(lbl)
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             if self.state == 'down':
@@ -85,14 +93,14 @@ class SettingsScreen(Screen):
         self.name = "settings"
         self.student_id = None
         self.student_data = None
-        self.bind(pos=self._update_bg, size=self._update_bg)
-        self._build_ui()
-
-    def _update_bg(self, *args):
-        self.canvas.before.clear()
         with self.canvas.before:
             Color(*get_color("background"))
-            Rectangle(pos=self.pos, size=self.size)
+            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+        def update_bg(instance, value):
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+        self.bind(pos=update_bg, size=update_bg)
+        self._build_ui()
 
     def on_enter(self):
         app = App.get_running_app()
@@ -191,6 +199,25 @@ class SettingsScreen(Screen):
         sys_card.add_widget(clear_btn)
 
         content.add_widget(sys_card)
+
+        # 4. Developer Section
+        dev_card = GlassCard(orientation='vertical', spacing='16dp', size_hint_y=None)
+        dev_card.bind(minimum_height=dev_card.setter('height'))
+        
+        lbl_dev = Label(text="DEVELOPER INFO", color=get_color("primary"), font_name=font_lbl["font_name"], font_size=font_lbl["font_size"], bold=True, size_hint_y=None, height='24dp', halign='left')
+        lbl_dev.bind(size=lbl_dev.setter('text_size'))
+        dev_card.add_widget(lbl_dev)
+
+        dev_info_box = BoxLayout(orientation='vertical', size_hint_y=None, height='48dp', spacing='4dp')
+        dev_text1 = Label(text="Developed by Savvy", color=get_color("on-surface"), font_name=font_val["font_name"], font_size=font_val["font_size"], halign='left')
+        dev_text1.bind(size=dev_text1.setter('text_size'))
+        dev_text2 = Label(text="Partnered with Zidon", color=get_color("on-surface-variant"), font_name=font_lbl["font_name"], font_size=font_lbl["font_size"], halign='left')
+        dev_text2.bind(size=dev_text2.setter('text_size'))
+        dev_info_box.add_widget(dev_text1)
+        dev_info_box.add_widget(dev_text2)
+        dev_card.add_widget(dev_info_box)
+
+        content.add_widget(dev_card)
 
         # Save Button
         save_btn = GradientButton(text="Save Settings", size_hint_y=None, height='56dp')

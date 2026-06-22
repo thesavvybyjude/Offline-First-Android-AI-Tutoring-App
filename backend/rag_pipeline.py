@@ -51,7 +51,9 @@ EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 output dimension
 PROMPT_TEMPLATE = Template("""\
 ### System
 You are an expert tutor for Nigerian secondary school students (NERDC/WAEC curriculum).
-Answer clearly, concisely, and at a {{ grade_level }} level. Use examples where helpful.
+You are currently tutoring them in {{ subject }}.
+If the student is just greeting you, greet them back warmly and ask how you can help with {{ subject }}.
+Otherwise, answer clearly, concisely, and at a {{ grade_level }} level. Use examples where helpful.
 
 ### Relevant Curriculum Context
 {% for chunk in context_chunks %}
@@ -59,7 +61,7 @@ Answer clearly, concisely, and at a {{ grade_level }} level. Use examples where 
 {{ chunk.text }}
 {% endfor %}
 
-### Student Question
+### Student
 {{ query }}
 
 ### Tutor Response
@@ -315,27 +317,33 @@ class RAGPipeline:
     def build_prompt(
         self,
         query: str,
-        grade_level: str = "SS2",
+        grade_level: str = "SS1",
+        subject: str = "Biology",
         retrieval: Optional[RetrievalResult] = None,
     ) -> PromptPackage:
         """Build final prompt string with injected context. Token-capped at MAX_PROMPT_TOKENS."""
         if retrieval is None:
             retrieval = self.retrieve(query)
+            
+        # Filter chunks by subject
+        filtered_chunks = [c for c in retrieval.chunks if c.subject.lower() == subject.lower()]
 
         prompt = PROMPT_TEMPLATE.render(
             grade_level=grade_level,
-            context_chunks=retrieval.chunks,
+            subject=subject,
+            context_chunks=filtered_chunks,
             query=query,
         )
         # Rough token estimate
         token_estimate = len(prompt) // SemanticChunker.CHARS_PER_TOKEN
 
         # Trim context if over budget
-        ctx_chunks = list(retrieval.chunks)
+        ctx_chunks = list(filtered_chunks)
         while token_estimate > MAX_PROMPT_TOKENS and ctx_chunks:
             ctx_chunks.pop()
             prompt = PROMPT_TEMPLATE.render(
                 grade_level=grade_level,
+                subject=subject,
                 context_chunks=ctx_chunks,
                 query=query,
             )

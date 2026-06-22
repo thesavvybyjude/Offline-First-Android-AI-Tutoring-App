@@ -41,6 +41,10 @@ class IconButton(ButtonBehavior, BoxLayout):
         self.add_widget(lbl)
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             r, g, b, a = self.bg_color
@@ -69,6 +73,10 @@ class ChipButton(ButtonBehavior, BoxLayout):
         self.width = value[0] + dp(24) # Add padding
 
     def _update_canvas(self, *args):
+        from kivy.clock import Clock
+        Clock.schedule_once(self._deferred_update_canvas, -1)
+
+    def _deferred_update_canvas(self, dt):
         self.canvas.before.clear()
         with self.canvas.before:
             if self.state == 'down':
@@ -96,14 +104,14 @@ class TutorChatScreen(Screen):
         self._shown_loading_msg = False
         self._ai_ready_event = None
         
-        self.bind(pos=self._update_bg, size=self._update_bg)
-        self._build_ui()
-
-    def _update_bg(self, *args):
-        self.canvas.before.clear()
         with self.canvas.before:
             Color(*get_color("background"))
-            Rectangle(pos=self.pos, size=self.size)
+            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+        def update_bg(instance, value):
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+        self.bind(pos=update_bg, size=update_bg)
+        self._build_ui()
 
     def on_enter(self):
         app = App.get_running_app()
@@ -144,19 +152,22 @@ class TutorChatScreen(Screen):
         main_layout = BoxLayout(orientation='vertical')
         
         # Top Bar
-        top_bar = TopBar(title="ZIDON AI")
+        top_bar = TopBar(title="OFFLINE AI TUTOR")
         main_layout.add_widget(top_bar)
         
-        # Sub-header (Topic context)
-        sub_head = BoxLayout(orientation='horizontal', size_hint_y=None, height='40dp', padding=['16dp', '0dp'])
-        topic_btn = ChipButton(text="Biology - WAEC")
-        sub_head.add_widget(topic_btn)
+        # Sub-header (Subject Selection)
+        sub_head = BoxLayout(orientation='horizontal', size_hint_y=None, height='40dp', padding=['16dp', '0dp'], spacing='8dp')
+        
+        self.btn_english = ChipButton(text="English")
+        self.btn_biology = ChipButton(text="Biology")
+        
+        sub_head.add_widget(self.btn_biology)
+        sub_head.add_widget(self.btn_english)
         sub_head.add_widget(BoxLayout(size_hint_x=1)) # spacer
         main_layout.add_widget(sub_head)
 
         # Chat Area
         scroll = ScrollView(size_hint_y=1, do_scroll_x=False, bar_width='4dp')
-        # Custom scrollbar styling in Kivy is complex, using default with narrow width
         self.chat_layout = GridLayout(cols=1, spacing='16dp', padding=['16dp', '16dp', '16dp', '24dp'], size_hint_y=None)
         self.chat_layout.bind(minimum_height=self.chat_layout.setter('height'))
         
@@ -168,8 +179,11 @@ class TutorChatScreen(Screen):
         date_lbl.bind(texture_size=date_lbl.setter('size'))
         with date_lbl.canvas.before:
             Color(*get_color("surface-container-high"))
-            RoundedRectangle(pos=date_lbl.pos, size=date_lbl.size, radius=[dp(12)])
-        date_lbl.bind(pos=lambda obj, val: self._update_date_bg(obj), size=lambda obj, val: self._update_date_bg(obj))
+            date_bg = RoundedRectangle(pos=date_lbl.pos, size=date_lbl.size, radius=[dp(12)])
+        def update_date_bg(instance, value):
+            date_bg.pos = instance.pos
+            date_bg.size = instance.size
+        date_lbl.bind(pos=update_date_bg, size=update_date_bg)
         date_box.add_widget(date_lbl)
         self.chat_layout.add_widget(date_box)
         
@@ -180,32 +194,39 @@ class TutorChatScreen(Screen):
         input_container = BoxLayout(orientation='vertical', size_hint_y=None, height='120dp', padding=['16dp', '8dp', '16dp', '16dp'])
         with input_container.canvas.before:
             Color(*get_color("surface")[:3] + (0.9,)) # 90% opaque background
-            Rectangle(pos=input_container.pos, size=input_container.size)
+            ic_rect = Rectangle(pos=input_container.pos, size=input_container.size)
             Color(*get_color("outline-variant"))
-            Line(rectangle=(input_container.x, input_container.top-1, input_container.width, 1), width=1)
-        input_container.bind(pos=self._update_input_bg, size=self._update_input_bg)
+            ic_line = Line(rectangle=(input_container.x, input_container.top-1, input_container.width, 1), width=1)
+        def update_input_bg(instance, value):
+            ic_rect.pos = instance.pos
+            ic_rect.size = instance.size
+            ic_line.rectangle = (instance.x, instance.top-1, instance.width, 1)
+        input_container.bind(pos=update_input_bg, size=update_input_bg)
         
         # Suggested Prompts (Scrollable row)
         prompt_scroll = ScrollView(size_hint_y=None, height='40dp', do_scroll_y=False)
-        prompt_box = BoxLayout(orientation='horizontal', size_hint_x=None, spacing='8dp', padding=['0dp', '4dp'])
-        prompt_box.bind(minimum_width=prompt_box.setter('width'))
-        
-        prompts = ["Explain Photosynthesis", "What factors affect it?", "Give me a quiz"]
-        for p in prompts:
-            btn = ChipButton(text=p)
-            btn.bind(on_release=lambda instance, text=p: self._set_and_send(text))
-            prompt_box.add_widget(btn)
-        prompt_scroll.add_widget(prompt_box)
+        self.prompt_box = BoxLayout(orientation='horizontal', size_hint_x=None, spacing='8dp', padding=['0dp', '4dp'])
+        self.prompt_box.bind(minimum_width=self.prompt_box.setter('width'))
+        prompt_scroll.add_widget(self.prompt_box)
         input_container.add_widget(prompt_scroll)
+        
+        # Subject selection logic
+        self.btn_english.bind(on_release=lambda x: self._select_subject("English"))
+        self.btn_biology.bind(on_release=lambda x: self._select_subject("Biology"))
+        self._select_subject("Biology") # Default subject
         
         # Input Box
         input_row = BoxLayout(orientation='horizontal', size_hint_y=None, height='56dp', spacing='8dp', padding=['4dp'])
         with input_row.canvas.before:
             Color(*get_color("user-bubble"))
-            RoundedRectangle(pos=input_row.pos, size=input_row.size, radius=[dp(12)])
+            ir_rect = RoundedRectangle(pos=input_row.pos, size=input_row.size, radius=[dp(12)])
             Color(*get_color("surface-bright"))
-            Line(rounded_rectangle=(input_row.x, input_row.y, input_row.width, input_row.height, dp(12)), width=1)
-        input_row.bind(pos=self._update_input_row_bg, size=self._update_input_row_bg)
+            ir_line = Line(rounded_rectangle=(input_row.x, input_row.y, input_row.width, input_row.height, dp(12)), width=1)
+        def update_input_row_bg(instance, value):
+            ir_rect.pos = instance.pos
+            ir_rect.size = instance.size
+            ir_line.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, dp(12))
+        input_row.bind(pos=update_input_row_bg, size=update_input_row_bg)
         
         attach_btn = IconButton(icon="+", icon_color=get_color("on-surface-variant"))
         input_row.add_widget(attach_btn)
@@ -219,7 +240,7 @@ class TutorChatScreen(Screen):
             cursor_color=get_color("primary"),
             font_name=font["font_name"],
             font_size=font["font_size"],
-            padding=['8dp', '16dp']
+            padding=['16dp', '10dp']
         )
         input_row.add_widget(self.message_input)
         
@@ -231,7 +252,7 @@ class TutorChatScreen(Screen):
         
         # Disclaimer
         disc_font = get_font("label-sm")
-        disc = Label(text="Zidon AI can make mistakes. Check important academic facts.",
+        disc = Label(text="Offline AI Tutor can make mistakes. Check important academic facts.",
                     color=get_color("on-surface-variant"), font_name=disc_font["font_name"],
                     font_size=dp(10), size_hint_y=None, height='16dp')
         input_container.add_widget(disc)
@@ -244,6 +265,27 @@ class TutorChatScreen(Screen):
             "If AI is still loading, wait a moment and try again.",
             is_user=False,
         )
+
+    def _select_subject(self, subject):
+        self.active_subject = subject
+        
+        # Update chip visuals
+        self.btn_biology.state = 'down' if subject == 'Biology' else 'normal'
+        self.btn_english.state = 'down' if subject == 'English' else 'normal'
+        self.btn_biology._update_canvas()
+        self.btn_english._update_canvas()
+        
+        # Update prompts
+        self.prompt_box.clear_widgets()
+        if subject == "Biology":
+            prompts = ["Explain Photosynthesis", "What factors affect it?", "Give me a quiz"]
+        else:
+            prompts = ["What is a Noun?", "How to write an Essay?", "Give me a reading test"]
+            
+        for p in prompts:
+            btn = ChipButton(text=p)
+            btn.bind(on_release=lambda instance, text=p: self._set_and_send(text))
+            self.prompt_box.add_widget(btn)
 
     def _update_date_bg(self, instance):
         instance.canvas.before.clear()
@@ -348,7 +390,8 @@ class TutorChatScreen(Screen):
         services = app.services
         response_text = ""
         try:
-            prompt, _sources = services.build_tutor_prompt(query)
+            subject = getattr(self, 'active_subject', 'Biology')
+            prompt, _sources = services.build_tutor_prompt(query, subject=subject)
             first_token = True
             for token in services.generate_stream(prompt):
                 response_text += token

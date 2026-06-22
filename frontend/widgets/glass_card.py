@@ -27,20 +27,33 @@ class GlassCard(BoxLayout):
         self.border_color = (r, g, b, 0.3)
         
         super().__init__(**kwargs)
-        self.bind(pos=self._update_canvas, size=self._update_canvas)
-
-    def _update_canvas(self, *args):
-        self.canvas.before.clear()
         with self.canvas.before:
-            # Background
-            Color(*self.bg_color)
+            # Faux Drop shadow
             r_val = float(str(self.radius).replace('dp', ''))
-            # Kivy doesn't easily let us pass a string like '16dp' directly to radius in Python code without metrics
             from kivy.metrics import dp
             r_dp = dp(r_val) if isinstance(self.radius, str) else self.radius
             
-            RoundedRectangle(pos=self.pos, size=self.size, radius=[r_dp])
+            # Shadow layers
+            Color(0, 0, 0, 0.05)
+            self.shadow1 = RoundedRectangle(pos=(self.x, self.y - dp(2)), size=self.size, radius=[r_dp])
+            Color(0, 0, 0, 0.03)
+            self.shadow2 = RoundedRectangle(pos=(self.x, self.y - dp(4)), size=(self.width, self.height + dp(2)), radius=[r_dp])
+            
+            # Background
+            Color(*self.bg_color)
+            self.bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[r_dp])
             
             # Subtle top border highlight
             Color(*self.border_color)
-            Line(rounded_rectangle=(self.x, self.y, self.width, self.height, r_dp), width=1)
+            self.border_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, r_dp), width=1)
+            
+        def update_bg(instance, value):
+            self.shadow1.pos = (instance.x, instance.y - dp(2))
+            self.shadow1.size = instance.size
+            self.shadow2.pos = (instance.x, instance.y - dp(4))
+            self.shadow2.size = (instance.width, instance.height + dp(2))
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+            self.border_line.rounded_rectangle = (instance.x, instance.y, instance.width, instance.height, r_dp)
+        
+        self.bind(pos=update_bg, size=update_bg)
