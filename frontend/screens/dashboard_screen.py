@@ -6,146 +6,326 @@ Shows student progress, streak, and navigation
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from kivy.app import App
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
-from kivy.graphics import Color, Rectangle
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.label import Label
+from kivy.uix.button import ButtonBehavior
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+from kivy.clock import Clock
+from kivy.metrics import dp
 
-try:
-    from kivy_garden.graph import Graph, BarPlot
-    HAS_GRAPH = True
-except ImportError:
-    HAS_GRAPH = False
+from frontend.theme import get_color, get_font, RADIUS
+from frontend.widgets.top_bar import TopBar
+from frontend.widgets.stat_card import StatCard
+from frontend.widgets.bar_chart import BarChart
+from frontend.widgets.glass_card import GlassCard
+from frontend.widgets.gradient_button import GradientButton
+
+class SecondaryButton(ButtonBehavior, BoxLayout):
+    """Outlined secondary action button"""
+    def __init__(self, text="", icon="", **kwargs):
+        self.orientation = 'horizontal'
+        self.padding = ['16dp', '0dp']
+        self.spacing = '8dp'
+        self.size_hint_y = None
+        self.height = '80dp'
+        self.btn_text = text
+        self.icon = icon
+        super().__init__(**kwargs)
+        self.bind(pos=self._update_canvas, size=self._update_canvas, state=self._update_canvas)
+        self._build_ui()
+        
+    def _build_ui(self):
+        self.clear_widgets()
+        
+        # Left content
+        left_box = BoxLayout(orientation='horizontal', spacing='12dp', size_hint_x=1)
+        if self.icon:
+            # Placeholder for icon
+            icon_lbl = Label(text=self.icon, color=get_color("primary"), size_hint_x=None, width='32dp', font_size='24sp')
+            left_box.add_widget(icon_lbl)
+            
+        font = get_font("headline-sm")
+        lbl = Label(
+            text=self.btn_text,
+            color=get_color("on-surface"),
+            font_name=font["font_name"],
+            font_size=font["font_size"],
+            bold=True,
+            halign='left'
+        )
+        lbl.bind(size=lbl.setter('text_size'))
+        left_box.add_widget(lbl)
+        self.add_widget(left_box)
+        
+        # Arrow
+        arrow = Label(text=">", color=get_color("on-surface-variant"), size_hint_x=None, width='24dp', font_size='20sp')
+        self.add_widget(arrow)
+
+    def _update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            if self.state == 'down':
+                Color(*get_color("surface-bright"))
+            else:
+                Color(*get_color("surface-variant"))
+            r_dp = dp(float(str(RADIUS['xl']).replace('dp', '')))
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[r_dp])
+            
+            Color(*get_color("outline-variant"))
+            Line(rounded_rectangle=(self.x, self.y, self.width, self.height, r_dp), width=1)
+
+
+class PrimaryCardButton(ButtonBehavior, BoxLayout):
+    """Filled primary action button"""
+    def __init__(self, text="", icon="", **kwargs):
+        self.orientation = 'horizontal'
+        self.padding = ['16dp', '0dp']
+        self.spacing = '8dp'
+        self.size_hint_y = None
+        self.height = '80dp'
+        self.btn_text = text
+        self.icon = icon
+        super().__init__(**kwargs)
+        self.bind(pos=self._update_canvas, size=self._update_canvas, state=self._update_canvas)
+        self._build_ui()
+        
+    def _build_ui(self):
+        self.clear_widgets()
+        
+        # Left content
+        left_box = BoxLayout(orientation='horizontal', spacing='12dp', size_hint_x=1)
+        if self.icon:
+            icon_lbl = Label(text=self.icon, color=get_color("on-primary-container"), size_hint_x=None, width='32dp', font_size='24sp')
+            left_box.add_widget(icon_lbl)
+            
+        font = get_font("headline-sm")
+        lbl = Label(
+            text=self.btn_text,
+            color=get_color("on-primary-container"),
+            font_name=font["font_name"],
+            font_size=font["font_size"],
+            bold=True,
+            halign='left'
+        )
+        lbl.bind(size=lbl.setter('text_size'))
+        left_box.add_widget(lbl)
+        self.add_widget(left_box)
+        
+        # Arrow
+        arrow = Label(text=">", color=get_color("on-primary-container"), size_hint_x=None, width='24dp', font_size='20sp')
+        self.add_widget(arrow)
+
+    def _update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            r, g, b, a = get_color("primary-container")
+            if self.state == 'down':
+                Color(r*0.8, g*0.8, b*0.8, a)
+            else:
+                Color(r, g, b, a)
+            r_dp = dp(float(str(RADIUS['xl']).replace('dp', '')))
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[r_dp])
 
 
 class DashboardScreen(Screen):
-    """Dashboard screen showing student progress"""
+    """Premium dashboard screen"""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "dashboard"
         self.student_id = None
+        self.student_name = "Student"
+        
+        self.bind(pos=self._update_bg, size=self._update_bg)
+        
+        # UI Elements that need updating
+        self.streak_lbl = None
+        self.greet_lbl = None
+        self.stat_ai = None
+        self.stat_due = None
+        self.stat_retention = None
+        self.stat_mastered = None
+        self.bar_chart = None
+        
         self._build_ui()
+
+    def _update_bg(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            Color(*get_color("background"))
+            Rectangle(pos=self.pos, size=self.size)
 
     def on_enter(self):
         app = App.get_running_app()
         services = app.services
         raw_id = getattr(app, "student_id", None) or getattr(services, "student_id", None)
         if not raw_id:
-            # User somehow reached dashboard without logging in
             self.student_id = None
             return
         self.student_id = str(raw_id)
+        
+        # Try to get display name
+        self.student_name = getattr(app, "student_name", None) or self.student_id
+        if self.greet_lbl:
+            self.greet_lbl.text = f"Hello, {self.student_name}!"
+            
         self._update_stats()
         self._update_ai_status()
+        
+        # Poll AI status
+        self.ai_poll_event = Clock.schedule_interval(lambda dt: self._update_ai_status(), 2.0)
+
+    def on_leave(self):
+        if hasattr(self, 'ai_poll_event'):
+            self.ai_poll_event.cancel()
 
     def _build_ui(self):
-        layout = BoxLayout(orientation="vertical", padding=15, spacing=15)
-
-        header = Label(text="Dashboard", font_size=32, size_hint_y=0.08, bold=True)
-        layout.add_widget(header)
-
-        self.ai_status_label = Label(
-            text="AI: starting…",
-            font_size=12,
-            size_hint_y=0.06,
-            color=(0.4, 0.4, 0.4, 1),
+        main_layout = BoxLayout(orientation='vertical')
+        
+        # Top App Bar
+        top_bar = TopBar(title="ZIDON AI")
+        main_layout.add_widget(top_bar)
+        
+        # Scrollable Content
+        scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
+        content = BoxLayout(orientation='vertical', padding=['16dp', '24dp', '16dp', '80dp'], spacing='24dp', size_hint_y=None)
+        content.bind(minimum_height=content.setter('height'))
+        
+        # Greeting & Streak
+        greet_box = BoxLayout(orientation='horizontal', size_hint_y=None, height='60dp')
+        
+        text_box = BoxLayout(orientation='vertical')
+        font_lg = get_font("headline-lg-mobile")
+        self.greet_lbl = Label(
+            text="Hello!",
+            color=get_color("on-surface"),
+            font_name=font_lg["font_name"],
+            font_size=font_lg["font_size"],
+            bold=True,
+            halign='left'
         )
-        layout.add_widget(self.ai_status_label)
-
-        stats_layout = GridLayout(cols=2, spacing=10, size_hint_y=0.28)
-
-        self.streak_label = Label(text="Streak: 0 days", font_size=18, size_hint_y=None, height=80)
-        stats_layout.add_widget(self.streak_label)
-
-        self.due_label = Label(text="Due Today: 0", font_size=18, size_hint_y=None, height=80)
-        stats_layout.add_widget(self.due_label)
-
-        self.retention_label = Label(text="Retention: 0%", font_size=18, size_hint_y=None, height=80)
-        stats_layout.add_widget(self.retention_label)
-
-        self.mastered_label = Label(text="Mastered: 0", font_size=18, size_hint_y=None, height=80)
-        stats_layout.add_widget(self.mastered_label)
-
-        layout.add_widget(stats_layout)
-
-        self.graph_container = BoxLayout(orientation="vertical", size_hint_y=0.28)
-        if HAS_GRAPH:
-            self.graph = Graph(
-                xlabel="Day",
-                ylabel="Reviews",
-                x_ticks_minor=1,
-                x_ticks_major=1,
-                y_ticks_major=5,
-                y_grid_label=True,
-                x_grid_label=True,
-                padding=5,
-                x_grid=True,
-                y_grid=True,
-                xmin=0,
-                xmax=6,
-                ymin=0,
-                ymax=20,
-            )
-            self.bar_plot = BarPlot(color=[0.2, 0.6, 0.8, 1], bar_width=0.5)
-            self.graph.add_plot(self.bar_plot)
-            self.graph_container.add_widget(self.graph)
-        else:
-            self.graph_container.add_widget(Label(text="(kivy_garden.graph not installed)"))
-
-        layout.add_widget(self.graph_container)
-
-        actions_layout = BoxLayout(orientation="vertical", spacing=10, size_hint_y=0.32)
-
-        review_btn = Button(
-            text="Start Review",
-            font_size=20,
-            size_hint_y=0.3,
-            background_color=(0.2, 0.6, 0.8, 1),
+        self.greet_lbl.bind(size=self.greet_lbl.setter('text_size'))
+        
+        font_md = get_font("body-md")
+        sub_lbl = Label(
+            text="Ready for today's session?",
+            color=get_color("on-surface-variant"),
+            font_name=font_md["font_name"],
+            font_size=font_md["font_size"],
+            halign='left'
         )
-        review_btn.bind(on_press=self.go_to_review)
-        actions_layout.add_widget(review_btn)
-
-        tutor_btn = Button(
-            text="Ask Tutor",
-            font_size=20,
-            size_hint_y=0.3,
-            background_color=(0.6, 0.2, 0.6, 1),
-        )
-        tutor_btn.bind(on_press=self.go_to_tutor)
-        actions_layout.add_widget(tutor_btn)
-
-        settings_btn = Button(
-            text="Settings",
-            font_size=18,
-            size_hint_y=0.2,
-            background_color=(0.5, 0.5, 0.5, 1),
-        )
-        settings_btn.bind(on_press=self.go_to_settings)
-        actions_layout.add_widget(settings_btn)
-
-        layout.add_widget(actions_layout)
-
-        logout_btn = Button(
-            text="Logout",
-            font_size=16,
-            size_hint_y=0.08,
-            background_color=(0.8, 0.2, 0.2, 1),
-        )
-        logout_btn.bind(on_press=self.logout)
-        layout.add_widget(logout_btn)
-
-        self.add_widget(layout)
+        sub_lbl.bind(size=sub_lbl.setter('text_size'))
+        
+        text_box.add_widget(self.greet_lbl)
+        text_box.add_widget(sub_lbl)
+        greet_box.add_widget(text_box)
+        
+        # Streak Badge
+        streak_badge = BoxLayout(orientation='horizontal', size_hint=(None, None), size=('120dp', '36dp'), 
+                               padding=['8dp', '4dp'], spacing='4dp', pos_hint={'center_y': 0.5})
+        with streak_badge.canvas.before:
+            Color(*get_color("surface-container-high"))
+            RoundedRectangle(pos=streak_badge.pos, size=streak_badge.size, radius=[dp(18)])
+            Color(1, 1, 1, 0.1)
+            Line(rounded_rectangle=(streak_badge.x, streak_badge.y, streak_badge.width, streak_badge.height, dp(18)), width=1)
+        
+        def update_badge(instance, value):
+            instance.canvas.before.clear()
+            with instance.canvas.before:
+                Color(*get_color("surface-container-high"))
+                RoundedRectangle(pos=instance.pos, size=instance.size, radius=[dp(18)])
+                Color(1, 1, 1, 0.1)
+                Line(rounded_rectangle=(instance.x, instance.y, instance.width, instance.height, dp(18)), width=1)
+        streak_badge.bind(pos=update_badge, size=update_badge)
+        
+        self.streak_lbl = Label(text="0 Day Streak", color=get_color("tertiary-fixed-dim"),
+                               font_name=get_font("label-lg")["font_name"], font_size=get_font("label-lg")["font_size"], bold=True)
+        streak_badge.add_widget(self.streak_lbl)
+        greet_box.add_widget(streak_badge)
+        
+        content.add_widget(greet_box)
+        
+        # Bento Stats Grid
+        stats_grid = GridLayout(cols=2, spacing='16dp', size_hint_y=None)
+        stats_grid.bind(minimum_height=stats_grid.setter('height'))
+        
+        # 1. AI Status (spans 2 cols visually in mockup, but here we just make it a card)
+        # We can make it span 2 cols by adding to a separate layout or letting it be a card
+        ai_box = BoxLayout(orientation='vertical', size_hint_y=None, height='100dp')
+        self.stat_ai = GlassCard(orientation='vertical', spacing='8dp')
+        lbl_ai_title = Label(text="AI TUTOR STATUS", color=get_color("on-surface-variant"), 
+                            font_name=get_font("label-sm")["font_name"], font_size=get_font("label-sm")["font_size"],
+                            halign='left', size_hint_y=None, height='16dp')
+        lbl_ai_title.bind(size=lbl_ai_title.setter('text_size'))
+        self.lbl_ai_val = Label(text="Starting...", color=get_color("on-surface"), 
+                               font_name=get_font("headline-sm")["font_name"], font_size=get_font("headline-sm")["font_size"],
+                               bold=True, halign='left')
+        self.lbl_ai_val.bind(size=self.lbl_ai_val.setter('text_size'))
+        self.stat_ai.add_widget(lbl_ai_title)
+        self.stat_ai.add_widget(BoxLayout(size_hint_y=1))
+        self.stat_ai.add_widget(self.lbl_ai_val)
+        ai_box.add_widget(self.stat_ai)
+        content.add_widget(ai_box)
+        
+        # Remaining stats
+        self.stat_due = StatCard(title="Due Today", value="0", unit="cards", size_hint_y=None, height='120dp')
+        self.stat_retention = StatCard(title="Retention", value="0%", size_hint_y=None, height='120dp')
+        self.stat_mastered = StatCard(title="Mastered", value="0", size_hint_y=None, height='120dp')
+        
+        # Let's put due in col 1, retention in col 2
+        stats_grid.add_widget(self.stat_due)
+        stats_grid.add_widget(self.stat_retention)
+        
+        # Put mastered below
+        stats_grid.add_widget(self.stat_mastered)
+        # Empty placeholder for 4th slot to maintain grid
+        stats_grid.add_widget(Widget(size_hint_y=None, height='120dp'))
+        
+        content.add_widget(stats_grid)
+        
+        # Primary Actions
+        actions_grid = GridLayout(cols=1, spacing='16dp', size_hint_y=None)
+        actions_grid.bind(minimum_height=actions_grid.setter('height'))
+        
+        btn_review = PrimaryCardButton(text="Start Review", icon="P")
+        btn_review.bind(on_release=self.go_to_review)
+        
+        btn_tutor = SecondaryButton(text="Ask AI Tutor", icon="C")
+        btn_tutor.bind(on_release=self.go_to_tutor)
+        
+        actions_grid.add_widget(btn_review)
+        actions_grid.add_widget(btn_tutor)
+        
+        content.add_widget(actions_grid)
+        
+        # Activity Chart
+        chart_card = GlassCard(orientation='vertical', size_hint_y=None, height='220dp')
+        lbl_chart = Label(text="7-Day Activity", color=get_color("on-surface"), 
+                         font_name=get_font("headline-sm")["font_name"], font_size=get_font("headline-sm")["font_size"],
+                         bold=True, halign='left', size_hint_y=None, height='32dp')
+        lbl_chart.bind(size=lbl_chart.setter('text_size'))
+        chart_card.add_widget(lbl_chart)
+        
+        self.bar_chart = BarChart(size_hint_y=1)
+        # Default empty data
+        days = ["M", "T", "W", "T", "F", "S", "S"]
+        self.bar_chart.data = [(d, 0.1) for d in days]
+        
+        chart_card.add_widget(self.bar_chart)
+        content.add_widget(chart_card)
+        
+        scroll.add_widget(content)
+        main_layout.add_widget(scroll)
+        self.add_widget(main_layout)
 
     def _update_ai_status(self):
         app = App.get_running_app()
         status = getattr(app, "ai_status", "") or app.services.ai_status_message()
-        self.ai_status_label.text = f"AI: {status}"
+        self.lbl_ai_val.text = status
 
     def _update_stats(self):
         app = App.get_running_app()
@@ -166,32 +346,30 @@ class DashboardScreen(Screen):
             else:
                 retention_pct = 100
 
-            self.streak_label.text = f"Streak: {streak} days"
-            self.due_label.text = f"Due Today: {due}"
-            self.retention_label.text = f"Retention: {retention_pct}%"
-            self.mastered_label.text = f"Mastered: {mastered}"
+            self.streak_lbl.text = f"{streak} Day Streak"
+            self.stat_due.value = str(due)
+            self.stat_retention.value = f"{retention_pct}%"
+            self.stat_mastered.value = str(mastered)
 
-            if HAS_GRAPH:
-                stats_7d = scheduler.get_retention_stats(self.student_id, days=7)
-                points = []
-                max_y = 5
-                for i in range(7):
-                    if i < len(stats_7d):
-                        val = stats_7d[i].get("total", 0)
-                        points.append((i, val))
-                        max_y = max(max_y, val)
-                    else:
-                        points.append((i, 0))
+            # Update Chart
+            stats_7d = scheduler.get_retention_stats(self.student_id, days=7)
+            chart_data = []
+            max_y = max((r.get("total", 0) for r in stats_7d), default=0)
+            if max_y == 0: max_y = 1 # Avoid division by zero
+            
+            days_labels = ["M", "T", "W", "T", "F", "S", "S"] # Simplified labels
+            for i in range(7):
+                if i < len(stats_7d):
+                    val = stats_7d[i].get("total", 0)
+                    pct = val / max_y
+                    chart_data.append((days_labels[i % 7], pct))
+                else:
+                    chart_data.append((days_labels[i % 7], 0.05)) # Tiny minimum visible bar
 
-                self.bar_plot.points = points
-                self.graph.ymax = ((max_y // 5) + 1) * 5
+            self.bar_chart.data = chart_data
 
         except Exception as e:
             print(f"Error updating stats: {e}")
-            self.streak_label.text = "Streak: 0 days"
-            self.due_label.text = "Due Today: 0"
-            self.retention_label.text = "Retention: 0%"
-            self.mastered_label.text = "Mastered: 0"
 
     def go_to_review(self, instance):
         self.manager.current = "review"
@@ -199,8 +377,3 @@ class DashboardScreen(Screen):
     def go_to_tutor(self, instance):
         self.manager.current = "tutor_chat"
 
-    def go_to_settings(self, instance):
-        self.manager.current = "settings"
-
-    def logout(self, instance):
-        self.manager.current = "login"

@@ -1,13 +1,13 @@
 [app]
 # App title and package
-title = AI Tutor
+title = ZIDON AI
 package.name = aitutor
 package.domain = org.aitutor
 
 # Entry point
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,json,gguf,index
-source.include_patterns = models/*.gguf, data/**
+source.include_exts = py,png,jpg,kv,atlas,json,gguf,index,ttf,otf
+source.include_patterns = models/*.gguf, data/**, assets/fonts/*.ttf
 source.exclude_dirs = tests, files, add ons, docs, .github, .venv, bin, .git, recipes
 
 version = 1.0.0
