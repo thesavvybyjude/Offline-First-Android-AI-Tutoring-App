@@ -71,20 +71,25 @@ jobs:
         CXXFLAGS: "-O2 -fPIC -std=c++17"
         CFLAGS: "-O2 -fPIC"
       run: |
+        set -o pipefail
         echo "========================================="
         echo "Starting Android APK build..."
         echo "========================================="
         yes | buildozer android debug 2>&1 | tee build.log
-        echo "Build exit code: $?"
+        echo "✓ Build completed successfully"
 
-    - name: List build output
-      if: always()
+    - name: Verify APK was created
       run: |
-        echo "--- bin/ directory ---"
-        ls -lh bin/ 2>/dev/null || echo "bin/ not found"
-        echo ""
         echo "--- Searching for APK files ---"
-        find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+        find . -name "*.apk" -type f -exec ls -lh {} \;
+        if ! ls bin/*.apk 1>/dev/null 2>&1; then
+          echo "::error::No APK found in bin/ — build may have failed silently"
+          echo "--- Last 100 lines of build log ---"
+          tail -100 build.log
+          exit 1
+        fi
+        echo "✓ APK found:"
+        ls -lh bin/*.apk
 
     - name: Upload APK
       if: always()
