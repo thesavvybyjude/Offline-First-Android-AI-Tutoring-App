@@ -43,8 +43,8 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install buildozer cython virtualenv
-        # Pin python-for-android to a specific, stable release:
-        pip install --upgrade "python-for-android==2024.12.0"
+        # Use latest available release of python-for-android
+        pip install --upgrade python-for-android
         echo "✓ Buildozer installed"
 
     - name: Verify model file (Git LFS)
