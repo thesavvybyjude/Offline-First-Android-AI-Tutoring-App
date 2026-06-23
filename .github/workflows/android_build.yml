@@ -13,6 +13,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        lfs: true
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -43,22 +45,11 @@ jobs:
         # test -f assets/splash.png || { echo "::error::assets/splash.png missing — add the file or update buildozer.spec"; exit 1; }
         echo "✓ App assets verification skipped"
 
-    - name: Cache AI Model
-      id: cache-model
-      uses: actions/cache@v4
-      with:
-        path: models/SmolLM2-360M-Instruct-Q4_K_M.gguf
-        key: smollm2-360m-q4km-v2
-
-    - name: Download AI model (SmolLM2-360M ~270MB)
-      if: steps.cache-model.outputs.cache-hit != 'true'
+    - name: Verify Git LFS pull
       run: |
-        mkdir -p models
-        echo "Installing huggingface_hub for robust downloads..."
-        pip install huggingface_hub
-        echo "Downloading SmolLM2-360M-Instruct-Q4_K_M.gguf (~270MB)..."
-        huggingface-cli download lmstudio-community/SmolLM2-360M-Instruct-GGUF SmolLM2-360M-Instruct-Q4_K_M.gguf --local-dir models --local-dir-use-symlinks False
-        echo "Downloaded: $(du -h models/SmolLM2-360M-Instruct-Q4_K_M.gguf | cut -f1)"
+        echo "Checking Git LFS pulled the model file..."
+        git lfs ls-files
+        ls -lh models/
 
     - name: Verify model file
       run: |
