@@ -15,6 +15,17 @@ jobs:
       uses: actions/checkout@v4
       with:
         lfs: true
+        fetch-depth: 0
+
+    - name: Ensure Git LFS objects (models)
+      run: |
+        git lfs install --local
+        # Try to pull only models; fallback to full pull if partial fails
+        git lfs pull --include="models/*" || git lfs pull
+        echo "--- LFS tracked files ---"
+        git lfs ls-files || true
+        echo "--- models directory ---"
+        ls -lh models/ || true
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
@@ -35,25 +46,24 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install buildozer cython virtualenv
-        pip install --upgrade python-for-android
+        # Pin python-for-android to a specific, stable release:
+        pip install --upgrade "python-for-android==2024.12.0"
         echo "✓ Buildozer installed"
 
     - name: Verify model file (Git LFS)
       run: |
-        echo "--- Git LFS files ---"
-        git lfs ls-files
-        echo ""
-        echo "--- models/ directory ---"
-        ls -lh models/ || echo "models/ directory not found"
-        echo ""
         MODEL="models/SmolLM2-360M-Instruct-Q4_K_M.gguf"
         if [ ! -f "$MODEL" ]; then
           echo "::error::Model not found: $MODEL"
+          ls -lah models || true
           exit 1
         fi
-        SIZE=$(stat -c%s "$MODEL")
+        # Print the first few lines to detect pointer file
+        echo "--- model head ---"
+        head -n 20 "$MODEL" || true
+        SIZE=$(stat -c%s "$MODEL" || echo 0)
         if [ "$SIZE" -lt 200000000 ]; then
-          echo "::error::Model too small ($SIZE bytes) — LFS pull may have failed"
+          echo "::error::Model too small ($SIZE bytes) — LFS pull may have failed or file is a pointer"
           exit 1
         fi
         echo "✓ Model verified: $(du -h "$MODEL" | cut -f1) ($SIZE bytes)"
