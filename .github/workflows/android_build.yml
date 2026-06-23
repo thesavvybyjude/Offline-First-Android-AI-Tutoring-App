@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # AI build can take 60-90 min
+    timeout-minutes: 120
 
     steps:
     - name: Checkout repository
@@ -16,78 +16,88 @@ jobs:
       with:
         lfs: true
 
-    - name: Set up Python
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Install System Dependencies
+    - name: Install system dependencies
       run: |
-        sudo apt update
-        sudo apt install -y \
-          git zip unzip openjdk-17-jdk python3-pip \
+        sudo apt-get update
+        sudo apt-get install -y \
+          git zip unzip openjdk-17-jdk \
           autoconf automake libtool libtool-bin pkg-config \
           zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev \
-          cython3 libltdl-dev m4 \
-          swig       # Required by faiss-cpu Python bindings
-        echo "System dependencies installed"
+          cython3 libltdl-dev m4 swig
+        echo "✓ System dependencies installed"
 
-    - name: Install Buildozer and python-for-android
+    - name: Install Buildozer
       run: |
         pip install --upgrade pip
         pip install buildozer cython virtualenv
         pip install --upgrade python-for-android
-        echo "Buildozer $(buildozer version 2>/dev/null || echo 'installed')"
+        echo "✓ Buildozer installed"
 
-    - name: Verify app assets
+    - name: Verify model file (Git LFS)
       run: |
-        # test -f assets/icon.png || { echo "::error::assets/icon.png missing — add the file or update buildozer.spec"; exit 1; }
-        # test -f assets/splash.png || { echo "::error::assets/splash.png missing — add the file or update buildozer.spec"; exit 1; }
-        echo "✓ App assets verification skipped"
-
-    - name: Verify Git LFS pull
-      run: |
-        echo "Checking Git LFS pulled the model file..."
+        echo "--- Git LFS files ---"
         git lfs ls-files
-        ls -lh models/
-
-    - name: Verify model file
-      run: |
-        MODEL_FILE="models/SmolLM2-360M-Instruct-Q4_K_M.gguf"
-        if [ ! -f "$MODEL_FILE" ]; then
-          echo "::error::Model file not found at $MODEL_FILE"
+        echo ""
+        echo "--- models/ directory ---"
+        ls -lh models/ || echo "models/ directory not found"
+        echo ""
+        MODEL="models/SmolLM2-360M-Instruct-Q4_K_M.gguf"
+        if [ ! -f "$MODEL" ]; then
+          echo "::error::Model not found: $MODEL"
           exit 1
         fi
-        SIZE=$(stat -c%s "$MODEL_FILE")
-        # SmolLM2-360M Q4_K_M should be ~271MB (284,000,000+ bytes)
+        SIZE=$(stat -c%s "$MODEL")
         if [ "$SIZE" -lt 200000000 ]; then
-          echo "::error::Model file too small ($SIZE bytes) — download may have failed"
+          echo "::error::Model too small ($SIZE bytes) — LFS pull may have failed"
           exit 1
         fi
-        echo "✓ Model verified: $(du -h "$MODEL_FILE" | cut -f1)"
+        echo "✓ Model verified: $(du -h "$MODEL" | cut -f1) ($SIZE bytes)"
+
+    - name: Cache Buildozer global directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.buildozer
+        key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-${{ runner.os }}-
 
     - name: Build Android APK
       env:
-        # C++ flags for cross-compiling AI dependencies
         CXXFLAGS: "-O2 -fPIC -std=c++17"
         CFLAGS: "-O2 -fPIC"
       run: |
-        echo "Starting Android build (this takes 60-90 minutes with AI deps)..."
+        echo "========================================="
+        echo "Starting Android APK build..."
+        echo "========================================="
         yes | buildozer android debug 2>&1 | tee build.log
-        BUILD_EXIT=$?
-        echo "Build completed with exit code $BUILD_EXIT"
-        exit $BUILD_EXIT
+        echo "Build exit code: $?"
 
-    - name: Upload APK Artifact
-      if: success()
+    - name: List build output
+      if: always()
+      run: |
+        echo "--- bin/ directory ---"
+        ls -lh bin/ 2>/dev/null || echo "bin/ not found"
+        echo ""
+        echo "--- Searching for APK files ---"
+        find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+
+    - name: Upload APK
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: AITutor-Android-App
+        name: ZIDON-AI-Tutor-APK
         path: bin/*.apk
+        if-no-files-found: warn
 
-    - name: Upload Build Log (on failure)
-      if: failure()
+    - name: Upload build log
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: build-log
         path: build.log
+        if-no-files-found: warn
