@@ -73,16 +73,8 @@ jobs:
           buildozer-${{ runner.os }}-
 
     - name: Build Android APK
-      env:
-        CXXFLAGS: "-O2 -fPIC -std=c++17"
-        CFLAGS: "-O2 -fPIC"
       run: |
-        set -o pipefail
-        echo "========================================="
-        echo "Starting Android APK build..."
-        echo "========================================="
         yes | buildozer android debug 2>&1 | tee build.log
-        echo "✓ Build completed successfully"
 
     - name: Verify APK was created
       run: |

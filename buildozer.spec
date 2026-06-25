@@ -17,14 +17,7 @@ version = 1.0.0
 # llama-cpp-python: on-device LLM inference (custom recipe in ./recipes)
 # faiss-cpu: vector similarity search for RAG (custom recipe)
 # sentence-transformers: embedding model shim (custom recipe, ONNX fallback)
-requirements =
-    hostpython3==3.11.8,
-    python3==3.11.8,
-    kivy==2.3.1,
-    sqlite3,
-    jinja2,
-    markupsafe==2.1.2,
-    llama-cpp-python==0.2.90
+requirements = hostpython3==3.11.8,python3==3.11.8,kivy==2.3.1,sqlite3,jinja2,markupsafe==2.1.1
 
 # Android settings
 android.permissions =

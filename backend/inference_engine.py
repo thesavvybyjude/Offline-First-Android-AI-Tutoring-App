@@ -13,6 +13,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Generator, Iterator, Optional
 
+try:
+    from llama_cpp import Llama
+    LOCAL_LLM_AVAILABLE = True
+except ImportError:
+    LOCAL_LLM_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,24 +126,21 @@ class InferenceEngine:
                 "Default mobile model (~270 MB): SmolLM2-360M-Instruct-Q4_K_M.gguf"
             )
 
+        if not LOCAL_LLM_AVAILABLE:
+            self._loaded = True
+            logger.info("llama_cpp not available, using fallback mode")
+            return
+
         preset = self._select_preset(ram_gb)
         logger.info(f"Loading model {self.model_path.name} with preset {preset}…")
 
-        try:
-            from llama_cpp import Llama
-            self._llm = Llama(
-                model_path=str(self.model_path),
-                n_ctx=preset["n_ctx"],
-                n_threads=preset["n_threads"],
-                n_gpu_layers=preset["n_gpu_layers"],
-                verbose=verbose,
-            )
-        except ImportError:
-            raise ImportError(
-                "llama-cpp-python not installed. "
-                "Install with: pip install llama-cpp-python --extra-index-url "
-                "https://abetlen.github.io/llama-cpp-python/whl/cpu"
-            )
+        self._llm = Llama(
+            model_path=str(self.model_path),
+            n_ctx=preset["n_ctx"],
+            n_threads=preset["n_threads"],
+            n_gpu_layers=preset["n_gpu_layers"],
+            verbose=verbose,
+        )
 
         self._loaded = True
         logger.info("Model loaded and ready")
@@ -166,14 +169,21 @@ class InferenceEngine:
         p = {**DEFAULT_PARAMS, **(params or {})}
 
         with self._lock:
-            t0 = time.perf_counter()
-            if on_token:
-                text, usage = self._stream_with_callback(prompt, p, on_token)
+            if not LOCAL_LLM_AVAILABLE:
+                text = "AI model not available on this device. Please check your connection."
+                usage = {}
+                if on_token:
+                    on_token(text)
+                elapsed_ms = 0
             else:
-                output = self._llm(prompt, **p)
-                text = output["choices"][0]["text"]
-                usage = output.get("usage", {})
-            elapsed_ms = (time.perf_counter() - t0) * 1000
+                t0 = time.perf_counter()
+                if on_token:
+                    text, usage = self._stream_with_callback(prompt, p, on_token)
+                else:
+                    output = self._llm(prompt, **p)
+                    text = output["choices"][0]["text"]
+                    usage = output.get("usage", {})
+                elapsed_ms = (time.perf_counter() - t0) * 1000
 
         prompt_tokens = usage.get("prompt_tokens", 0)
         completion_tokens = usage.get("completion_tokens", len(text.split()))
@@ -195,6 +205,9 @@ class InferenceEngine:
         """
         self._require_loaded()
         p = {**DEFAULT_PARAMS, **(params or {}), "stream": True}
+        if not LOCAL_LLM_AVAILABLE:
+            yield "AI model not available on this device. Please check your connection."
+            return
 
         with self._lock:
             for chunk in self._llm(prompt, **p):
