@@ -22,7 +22,7 @@ requirements =
     python3==3.11.8,
     kivy==2.3.1,
     sqlite3,
-    numpy,
+    numpy==1.24.4,
     jinja2,
     markupsafe==2.1.2,
     llama-cpp-python==0.2.90,
