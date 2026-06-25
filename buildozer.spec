@@ -22,12 +22,9 @@ requirements =
     python3==3.11.8,
     kivy==2.3.1,
     sqlite3,
-    numpy==1.25.3,
     jinja2,
     markupsafe==2.1.2,
-    llama-cpp-python==0.2.90,
-    faiss-cpu==1.8.0,
-    sentence-transformers==3.0.0
+    llama-cpp-python==0.2.90
 
 # Android settings
 android.permissions =
