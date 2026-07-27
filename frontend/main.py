@@ -1,5 +1,6 @@
 """
 Kivy Main Application
+
 Entry point for the Premium AI Tutoring Android App
 """
 

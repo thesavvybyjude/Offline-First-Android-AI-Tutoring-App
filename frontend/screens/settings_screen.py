@@ -209,9 +209,9 @@ class SettingsScreen(Screen):
         dev_card.add_widget(lbl_dev)
 
         dev_info_box = BoxLayout(orientation='vertical', size_hint_y=None, height='48dp', spacing='4dp')
-        dev_text1 = Label(text="Developed by Savvy", color=get_color("on-surface"), font_name=font_val["font_name"], font_size=font_val["font_size"], halign='left')
+        dev_text1 = Label(text="Developed by ZIDON", color=get_color("on-surface"), font_name=font_val["font_name"], font_size=font_val["font_size"], halign='left', bold=True)
         dev_text1.bind(size=dev_text1.setter('text_size'))
-        dev_text2 = Label(text="Partnered with Zidon", color=get_color("on-surface-variant"), font_name=font_lbl["font_name"], font_size=font_lbl["font_size"], halign='left')
+        dev_text2 = Label(text="Offline AI Tutor v1.0", color=get_color("on-surface-variant"), font_name=font_lbl["font_name"], font_size=font_lbl["font_size"], halign='left')
         dev_text2.bind(size=dev_text2.setter('text_size'))
         dev_info_box.add_widget(dev_text1)
         dev_info_box.add_widget(dev_text2)

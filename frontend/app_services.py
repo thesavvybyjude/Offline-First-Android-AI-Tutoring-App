@@ -114,20 +114,13 @@ class AppServices:
             try:
                 # --- Check llama-cpp-python ---
                 if not _check_llama():
-                    return False, (
-                        "llama-cpp-python not installed. "
-                        "On desktop: pip install llama-cpp-python. "
-                        "On Android APK: use a build with AI dependencies."
-                    )
+                    return False, "AI engine not available"
 
                 # --- Check if a GGUF model exists before trying to load ---
                 if not self.downloader.model_exists():
                     self._ai_ready = False
-                    self._ai_error = "No GGUF model found in models/ directory."
-                    return False, (
-                        "No GGUF model found. Place a .gguf model file in "
-                        f"{self.models_dir} or run: python setup_env.py"
-                    )
+                    self._ai_error = "AI model not found"
+                    return False, "AI model not downloaded yet"
 
                 logger.info("Model found in %s — loading…", self.models_dir)
 
@@ -137,7 +130,7 @@ class AppServices:
                     try:
                         self.engine = InferenceEngine(models_dir=self.models_dir)
                     except (FileNotFoundError, ValueError) as e:
-                        return False, f"Model not found — run: python setup_env.py ({e})"
+                        return False, "AI model not found"
                     ram = 3.0 if is_android() else 4.0
                     self.engine.load(ram_gb=ram)
 
@@ -177,17 +170,12 @@ class AppServices:
 
     def ai_status_message(self) -> str:
         if self._loading:
-            return "Loading AI models…"
+            return "Loading AI…"
         if self.is_ai_ready():
-            model_name = self.engine.model_path.name if self.engine else "model"
-            return f"AI ready ({model_name})"
+            return "AI Ready ✓"
         if self._ai_error:
-            if self.downloader.model_exists():
-                return f"AI offline: {self._ai_error}"
-            return "AI offline: No model found — download required."
-        if self.downloader.model_exists():
-            return "AI not loaded yet."
-        return "AI not loaded — no model found."
+            return "Offline Mode"
+        return "Offline Mode"
 
     def build_tutor_prompt(self, query: str, subject: str = "Biology") -> tuple[str, list[str]]:
         if self.rag and hasattr(self.rag, "is_loaded") and self.rag.is_loaded:
