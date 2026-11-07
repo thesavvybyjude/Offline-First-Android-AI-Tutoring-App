@@ -127,4 +127,8 @@ pytest --cov=backend --cov=frontend
 
 ## License
 
-MIT License
+[MIT](LICENSE)
+
+---
+
+Built by [Jude Thompson](https://github.com/thesavvybyjude)
